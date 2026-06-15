@@ -14,20 +14,47 @@
   --b1:#2e3240;--b2:#3a3f52;
   --acc:#4f8ef7;--acc2:#2563d4;--acc-bg:#0e1e3d;
   --red:#f26c6c;--red-bg:#2a0d0d;--red-b:#5c1c1c;
-  --amber:#f5a623;--amber-bg:#2a1c00;
-  --green:#52c97a;--green-bg:#0a2416;
+  --amber:#f5a623;--amber-bg:#2a1c00;--amber-b:#4a3000;
+  --green:#52c97a;--green-bg:#0a2416;--green-b:#1a4a2e;
+  --purple:#b06ef7;--purple-bg:#1a0b2e;--purple-b:#3d1566;
+  --cyan:#22d3ee;--cyan-bg:#0a1e24;
   --t1:#f0ede8;--t2:#c8c4bc;--t3:#7a7f90;--t4:#4a4f60;
   --mono:'IBM Plex Mono',monospace;
 }
-html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-serif;color:var(--t1)}
-#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-serif;color:var(--t1);overflow:hidden}
+#app{height:100vh;overflow:hidden;display:flex;flex-direction:column}
 
-/* ── Home screen ── */
-#home{display:flex;flex-direction:column;height:100%;padding:14px;gap:12px;overflow-y:auto}
-.header h1{font-size:15px;font-weight:600;letter-spacing:.02em}
-.header p{font-size:11.5px;color:var(--t3);margin-top:3px}
+/* ═══ SCREENS ═══ */
+.screen{display:none;flex-direction:column;height:100%;overflow:hidden}
+.screen.active{display:flex}
 
-.sel-box{background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--t2)}
+/* ═══ SHARED HEADER ═══ */
+.panel-header{display:flex;align-items:center;gap:10px;padding:13px 14px 11px;border-bottom:1px solid var(--b1);flex-shrink:0}
+.back-btn{background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;display:flex;align-items:center;padding:2px;border-radius:4px}
+.back-btn:hover{color:var(--t1);background:var(--s2)}
+.panel-title{font-size:14px;font-weight:600}
+.panel-sub{font-size:10.5px;color:var(--t3);margin-top:2px}
+
+/* ═══ SCROLLABLE BODY ═══ */
+.panel-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.panel-body::-webkit-scrollbar{width:4px}
+.panel-body::-webkit-scrollbar-track{background:transparent}
+.panel-body::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* ═══ FOOTER ═══ */
+.panel-footer{padding:11px 14px;border-top:1px solid var(--b1);flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+.primary-btn{width:100%;padding:11px;font-size:13px;font-weight:700;background:var(--acc);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:background .15s}
+.primary-btn:hover{background:var(--acc2)}
+.primary-btn:disabled{background:var(--b1);color:var(--t4);cursor:not-allowed}
+.btn-note{font-size:10px;color:var(--t4);text-align:center}
+
+/* ═══ HOME ═══ */
+#home .panel-body{padding:14px}
+.home-header{margin-bottom:4px}
+.home-header h1{font-size:15px;font-weight:600}
+.home-header p{font-size:11.5px;color:var(--t3);margin-top:3px}
+
+.sel-box{background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:11px}
 .sel-label{color:var(--t3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 .sel-addr{color:var(--acc);font-weight:600}
 .sel-count{color:var(--t3);margin-top:2px}
@@ -37,169 +64,168 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-seri
 .feature-list{display:flex;flex-direction:column;gap:8px}
 .feature-btn{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--s1);border:1px solid var(--b1);border-radius:8px;cursor:pointer;transition:all .12s;text-align:left;color:var(--t1);font-family:'IBM Plex Sans',sans-serif;width:100%}
 .feature-btn:hover{background:var(--s2);border-color:var(--b2)}
-.feature-btn.active{background:var(--acc-bg);border-color:var(--acc)}
 .feature-btn i{font-size:18px;color:var(--acc);flex-shrink:0;width:22px;text-align:center}
 .ft-text{display:flex;flex-direction:column;gap:1px}
 .ft-title{font-size:12.5px;font-weight:600}
 .ft-desc{font-size:10.5px;color:var(--t3)}
 
-/* ── Clean panel ── */
-#clean-panel{display:none;flex-direction:column;height:100%}
-.cp-header{display:flex;align-items:center;gap:10px;padding:14px 14px 10px;border-bottom:1px solid var(--b1);flex-shrink:0}
-.cp-back{background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;display:flex;align-items:center;padding:2px}
-.cp-back:hover{color:var(--t1)}
-.cp-title{font-size:14px;font-weight:600}
-.cp-sub{font-size:11px;color:var(--t3);margin-top:1px}
+/* ═══ STEP 1 — COLUMN TYPES ═══ */
+.step-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t4);margin-bottom:2px}
+.col-type-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s1);border:1px solid var(--b1);border-radius:8px}
+.col-name{flex:1;font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.col-sample{font-size:10px;color:var(--t4);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.type-select{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 8px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;outline:none;flex-shrink:0}
+.type-select:focus{border-color:var(--acc)}
 
-.cp-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+/* type dot */
+.tdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-text{background:var(--purple)}.dot-number{background:var(--green)}.dot-email{background:var(--amber)}.dot-date{background:var(--acc)}
 
-/* accordion sections */
-.acc-section{background:var(--s1);border:1px solid var(--b1);border-radius:8px;overflow:hidden}
-.acc-header{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;transition:background .1s}
-.acc-header:hover{background:var(--s2)}
-.acc-icon{font-size:16px;flex-shrink:0}
-.acc-label{flex:1;font-size:12.5px;font-weight:600}
-.badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;font-family:var(--mono)}
-.badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b)}
-.badge-blue{background:var(--acc-bg);color:var(--acc);border:1px solid #1e3a6e}
-.badge-amber{background:var(--amber-bg);color:var(--amber);border:1px solid #4a3000}
-.badge-green{background:var(--green-bg);color:var(--green);border:1px solid #1a4a2e}
-.acc-chevron{font-size:14px;color:var(--t4);transition:transform .2s}
-.acc-chevron.open{transform:rotate(180deg)}
-
-.acc-body{display:none;border-top:1px solid var(--b1);padding:0}
+/* ═══ STEP 2 — ISSUES ═══ */
+/* accordion */
+.acc{background:var(--s1);border:1px solid var(--b1);border-radius:8px;overflow:hidden}
+.acc-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;transition:background .1s}
+.acc-hdr:hover{background:var(--s2)}
+.acc-hdr-icon{font-size:16px;flex-shrink:0}
+.acc-hdr-label{flex:1;font-size:12.5px;font-weight:600}
+.badge{font-size:10px;font-weight:700;padding:2px 9px;border-radius:12px;font-family:var(--mono);flex-shrink:0}
+.b-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b)}
+.b-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
+.b-blue{background:var(--acc-bg);color:var(--acc);border:1px solid #1e3a6e}
+.b-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b)}
+.acc-chev{font-size:14px;color:var(--t4);transition:transform .2s;flex-shrink:0}
+.acc-chev.open{transform:rotate(180deg)}
+.acc-body{display:none;border-top:1px solid var(--b1)}
 .acc-body.open{display:block}
-
-/* row list inside accordion */
-.row-list{max-height:180px;overflow-y:auto}
-.row-item{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--b1);font-size:11.5px;font-family:var(--mono)}
-.row-item:last-child{border-bottom:none}
-.row-item input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px;flex-shrink:0;cursor:pointer}
-.row-num{color:var(--t4);font-size:10px;min-width:28px}
-.row-preview{color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.row-tag{font-size:9.5px;padding:1px 6px;border-radius:4px;flex-shrink:0}
-
-.select-all-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:11px;color:var(--t3);border-bottom:1px solid var(--b1);cursor:pointer}
-.select-all-row input{accent-color:var(--acc);cursor:pointer}
-
-/* empty state */
 .acc-empty{padding:12px 14px;font-size:11.5px;color:var(--t4);font-style:italic}
 
-/* scanning state */
-.scanning{display:flex;align-items:center;gap:8px;padding:14px;font-size:12px;color:var(--t3)}
-.spin{animation:spin .8s linear infinite;display:inline-block;font-size:16px}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* ── blank cells section ── */
+.blank-col-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--b1)}
+.blank-col-row:last-child{border-bottom:none}
+.blank-col-name{flex:1;font-size:12px;font-weight:600;color:var(--t1)}
+.blank-col-meta{font-size:10px;color:var(--t3);margin-top:1px}
+.blank-input{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 9px;font-family:var(--mono);width:130px;flex-shrink:0;outline:none}
+.blank-input:focus{border-color:var(--acc)}
 
-/* footer */
-.cp-footer{padding:12px 14px;border-top:1px solid var(--b1);flex-shrink:0;display:flex;flex-direction:column;gap:8px}
-.apply-btn{width:100%;padding:11px;font-size:13px;font-weight:700;background:var(--acc);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;letter-spacing:.02em;transition:background .15s}
-.apply-btn:hover{background:var(--acc2)}
-.apply-btn:disabled{background:var(--b1);color:var(--t4);cursor:not-allowed}
-.apply-note{font-size:10.5px;color:var(--t4);text-align:center}
+/* ── duplicate rows section ── */
+.sel-all-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:11px;color:var(--t3);border-bottom:1px solid var(--b1)}
+.sel-all-row input{accent-color:var(--acc);cursor:pointer;width:14px;height:14px}
+.dupe-row{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--b1)}
+.dupe-row:last-child{border-bottom:none}
+.dupe-row input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px;flex-shrink:0;cursor:pointer}
+.dupe-rnum{font-size:10px;color:var(--t4);font-family:var(--mono);flex-shrink:0;min-width:44px}
+.dupe-preview{font-size:11.5px;color:var(--t2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
+.dupe-tag{font-size:9.5px;padding:2px 7px;border-radius:4px;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
+
+/* ── formatting section ── */
+.fmt-col-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--b1)}
+.fmt-col-row:last-child{border-bottom:none}
+.fmt-col-name{flex:1;font-size:12px;font-weight:600;color:var(--t1)}
+.fmt-col-type{font-size:10px;color:var(--t3);margin-top:1px}
+.fmt-select{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 8px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;outline:none;flex-shrink:0}
+.fmt-select:focus{border-color:var(--acc)}
+.add-col-row{padding:10px 14px;border-top:1px solid var(--b1)}
+.add-col-btn{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--acc);background:none;border:none;cursor:pointer;padding:4px 0;font-family:'IBM Plex Sans',sans-serif}
+.add-col-btn:hover{color:var(--t1)}
+
+/* ── email section ── */
+.email-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--b1)}
+.email-row:last-child{border-bottom:none}
+.email-rnum{font-size:10px;color:var(--t4);font-family:var(--mono);flex-shrink:0;min-width:44px}
+.email-val{font-size:11.5px;color:var(--red);font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-input{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 9px;font-family:var(--mono);width:140px;flex-shrink:0;outline:none}
+.email-input:focus{border-color:var(--acc)}
 
 /* toast */
-#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--green-bg);border:1px solid var(--green);color:var(--green);padding:8px 18px;border-radius:8px;font-size:12px;font-weight:600;display:none;z-index:999;white-space:nowrap}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:8px 18px;border-radius:8px;font-size:12px;font-weight:600;display:none;z-index:999;white-space:nowrap;background:var(--green-bg);border:1px solid var(--green);color:var(--green)}
 #toast.err{background:var(--red-bg);border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- ── HOME ── -->
-  <div id="home">
-    <div class="header">
+<!-- ══════════════ HOME ══════════════ -->
+<div class="screen active" id="home">
+  <div class="panel-body" style="padding:14px;gap:12px">
+    <div class="home-header">
       <h1>MX Sheet Toolkit</h1>
       <p>Select cells in your sheet, then pick a feature.</p>
     </div>
-
     <div class="sel-box">
       <div class="sel-label">Current Selection</div>
       <div class="sel-addr" id="sel-addr">—</div>
       <div class="sel-count" id="sel-count">No selection yet</div>
       <button id="refresh-btn"><i class="ti ti-refresh"></i>Refresh selection</button>
     </div>
-
     <div class="feature-list">
-      <button class="feature-btn" data-feature="clean">
-        <i class="ti ti-sparkles"></i>
-        <div class="ft-text"><span class="ft-title">Clean a sheet</span><span class="ft-desc">Remove blanks, duplicates, fix formatting</span></div>
-      </button>
-      <button class="feature-btn" data-feature="search-row">
-        <i class="ti ti-list-search"></i>
-        <div class="ft-text"><span class="ft-title">Search for a row</span><span class="ft-desc">Find rows matching a value or condition</span></div>
-      </button>
-      <button class="feature-btn" data-feature="bulk">
-        <i class="ti ti-stack-2"></i>
-        <div class="ft-text"><span class="ft-title">Bulk manipulation</span><span class="ft-desc">Apply changes across many rows at once</span></div>
-      </button>
-      <button class="feature-btn" data-feature="edit-column">
-        <i class="ti ti-edit"></i>
-        <div class="ft-text"><span class="ft-title">Edit column</span><span class="ft-desc">Transform or update a whole column</span></div>
-      </button>
-      <button class="feature-btn" data-feature="compare">
-        <i class="ti ti-layers-difference"></i>
-        <div class="ft-text"><span class="ft-title">Compare sheets</span><span class="ft-desc">Diff two sheets or ranges</span></div>
-      </button>
-      <button class="feature-btn" data-feature="add-sheet">
-        <i class="ti ti-file-plus"></i>
-        <div class="ft-text"><span class="ft-title">Add a sheet</span><span class="ft-desc">Create a new sheet in this workbook</span></div>
-      </button>
-      <button class="feature-btn" data-feature="search-sheet">
-        <i class="ti ti-folder-search"></i>
-        <div class="ft-text"><span class="ft-title">Search for a sheet</span><span class="ft-desc">Find and jump to a sheet by name</span></div>
-      </button>
+      <button class="feature-btn" data-feature="clean"><i class="ti ti-sparkles"></i><div class="ft-text"><span class="ft-title">Clean a sheet</span><span class="ft-desc">Remove blanks, duplicates, fix formatting</span></div></button>
+      <button class="feature-btn" data-feature="search-row"><i class="ti ti-list-search"></i><div class="ft-text"><span class="ft-title">Search for a row</span><span class="ft-desc">Find rows matching a value or condition</span></div></button>
+      <button class="feature-btn" data-feature="bulk"><i class="ti ti-stack-2"></i><div class="ft-text"><span class="ft-title">Bulk manipulation</span><span class="ft-desc">Apply changes across many rows at once</span></div></button>
+      <button class="feature-btn" data-feature="edit-column"><i class="ti ti-edit"></i><div class="ft-text"><span class="ft-title">Edit column</span><span class="ft-desc">Transform or update a whole column</span></div></button>
+      <button class="feature-btn" data-feature="compare"><i class="ti ti-layers-difference"></i><div class="ft-text"><span class="ft-title">Compare sheets</span><span class="ft-desc">Diff two sheets or ranges</span></div></button>
+      <button class="feature-btn" data-feature="add-sheet"><i class="ti ti-file-plus"></i><div class="ft-text"><span class="ft-title">Add a sheet</span><span class="ft-desc">Create a new sheet in this workbook</span></div></button>
+      <button class="feature-btn" data-feature="search-sheet"><i class="ti ti-folder-search"></i><div class="ft-text"><span class="ft-title">Search for a sheet</span><span class="ft-desc">Find and jump to a sheet by name</span></div></button>
     </div>
   </div>
+</div>
 
-  <!-- ── CLEAN PANEL ── -->
-  <div id="clean-panel">
-    <div class="cp-header">
-      <button class="cp-back" id="clean-back"><i class="ti ti-arrow-left"></i></button>
-      <div>
-        <div class="cp-title">Clean a sheet</div>
-        <div class="cp-sub" id="clean-sub">Analysing selection…</div>
-      </div>
-    </div>
-
-    <div class="cp-body" id="clean-body">
-      <div class="scanning"><i class="ti ti-loader-2 spin"></i> Scanning your data…</div>
-    </div>
-
-    <div class="cp-footer">
-      <button class="apply-btn" id="apply-btn" disabled>Apply &amp; create cleaned sheet</button>
-      <div class="apply-note">A new sheet will be created with the cleaned data. Your original sheet stays untouched.</div>
+<!-- ══════════════ STEP 1 — COLUMN TYPES ══════════════ -->
+<div class="screen" id="step1">
+  <div class="panel-header">
+    <button class="back-btn" onclick="goHome()"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">Clean a sheet</div>
+      <div class="panel-sub">Step 1 of 2 — Confirm column types</div>
     </div>
   </div>
+  <div class="panel-body" id="col-type-list"></div>
+  <div class="panel-footer">
+    <button class="primary-btn" onclick="goStep2()">Next — Scan for issues</button>
+  </div>
+</div>
+
+<!-- ══════════════ STEP 2 — ISSUES ══════════════ -->
+<div class="screen" id="step2">
+  <div class="panel-header">
+    <button class="back-btn" onclick="goStep1()"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">Clean a sheet</div>
+      <div class="panel-sub" id="issues-sub">Step 2 of 2 — Review issues</div>
+    </div>
+  </div>
+  <div class="panel-body" id="issues-body"></div>
+  <div class="panel-footer">
+    <button class="primary-btn" id="apply-btn" onclick="applyClean()">Apply &amp; create cleaned sheet</button>
+    <div class="btn-note">A new sheet is created with fixes applied. Your original stays untouched.</div>
+  </div>
+</div>
 
 </div>
 <div id="toast"></div>
 
 <script>
-/* ── state ── */
-let currentSelection = null;
-let cleanResults = null; // { blanks:[], duplicates:[], formatting:[], emails:[] }
+/* ════ STATE ════ */
+let sel = null;          // { address, values, rowCount, columnCount }
+let colTypes = [];       // ['text'|'number'|'email'|'date', ...]
+let issues = null;       // { blanks, dupes, fmt, emails }
 
-/* ── Office ready ── */
+/* ════ OFFICE READY ════ */
 Office.onReady(() => {
-  document.getElementById('refresh-btn').addEventListener('click', readSelection);
-  document.getElementById('clean-back').addEventListener('click', showHome);
-  document.getElementById('apply-btn').addEventListener('click', applyClean);
-  document.querySelectorAll('.feature-btn').forEach(btn => {
-    btn.addEventListener('click', () => handleFeature(btn.dataset.feature));
-  });
-  readSelection();
+  document.getElementById('refresh-btn').addEventListener('click', readSel);
+  document.querySelectorAll('.feature-btn').forEach(b => b.addEventListener('click', () => handleFeature(b.dataset.feature)));
+  readSel();
 });
 
-/* ── read selection ── */
-async function readSelection() {
+/* ════ SELECTION ════ */
+async function readSel() {
   try {
-    await Excel.run(async (ctx) => {
-      const range = ctx.workbook.getSelectedRange();
-      range.load(['address','values','rowCount','columnCount']);
+    await Excel.run(async ctx => {
+      const r = ctx.workbook.getSelectedRange();
+      r.load(['address','values','rowCount','columnCount']);
       await ctx.sync();
-      currentSelection = { address: range.address, values: range.values, rowCount: range.rowCount, columnCount: range.columnCount };
-      document.getElementById('sel-addr').textContent = range.address;
-      document.getElementById('sel-count').textContent = `${range.rowCount} row(s) × ${range.columnCount} col(s)`;
+      sel = { address: r.address, values: r.values, rowCount: r.rowCount, columnCount: r.columnCount };
+      document.getElementById('sel-addr').textContent = r.address;
+      document.getElementById('sel-count').textContent = `${r.rowCount} row(s) × ${r.columnCount} col(s)`;
     });
   } catch(e) {
     document.getElementById('sel-addr').textContent = 'Error';
@@ -207,290 +233,387 @@ async function readSelection() {
   }
 }
 
-/* ── feature router ── */
-function handleFeature(feature) {
-  if (feature === 'clean') openClean();
-  else showToast(`"${feature}" feature coming soon!`, false);
+/* ════ ROUTING ════ */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goHome() { show('home'); }
+function handleFeature(f) {
+  if (f === 'clean') openClean();
+  else showToast(`"${f}" — coming soon!`, false);
 }
 
-/* ── show/hide screens ── */
-function showHome() {
-  document.getElementById('home').style.display = 'flex';
-  document.getElementById('clean-panel').style.display = 'none';
-}
-function showClean() {
-  document.getElementById('home').style.display = 'none';
-  document.getElementById('clean-panel').style.display = 'flex';
-}
-
-/* ── CLEAN FEATURE ── */
+/* ════ STEP 1 ════ */
 function openClean() {
-  if (!currentSelection || !currentSelection.values || currentSelection.values.length < 2) {
-    showToast('Please select data with at least a header row and one data row.', true);
-    return;
-  }
-  showClean();
-  analyseData();
+  if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 row.', true); return; }
+  const headers = sel.values[0];
+  const sample  = sel.values[1] || [];
+
+  // auto-detect type
+  colTypes = headers.map((h, i) => detectType(h, sample[i]));
+
+  const list = document.getElementById('col-type-list');
+  list.innerHTML = '<div class="step-label">Column types</div>';
+
+  headers.forEach((h, i) => {
+    const row = document.createElement('div');
+    row.className = 'col-type-row';
+    const dotClass = `dot-${colTypes[i]}`;
+    row.innerHTML = `
+      <div class="tdot ${dotClass}" id="tdot-${i}"></div>
+      <div style="flex:1;min-width:0">
+        <div class="col-name">${h || `Col ${i+1}`}</div>
+        <div class="col-sample">${sample[i] !== undefined && sample[i] !== '' ? sample[i] : '(empty)'}</div>
+      </div>
+      <select class="type-select" data-col="${i}" onchange="updateType(${i},this.value)">
+        <option value="text"   ${colTypes[i]==='text'   ?'selected':''}>Text</option>
+        <option value="number" ${colTypes[i]==='number' ?'selected':''}>Number</option>
+        <option value="email"  ${colTypes[i]==='email'  ?'selected':''}>Email</option>
+        <option value="date"   ${colTypes[i]==='date'   ?'selected':''}>Date</option>
+      </select>`;
+    list.appendChild(row);
+  });
+
+  show('step1');
+}
+
+function detectType(header, sampleVal) {
+  const h = (header || '').toString().toLowerCase();
+  if (h.includes('email') || h.includes('mail')) return 'email';
+  if (h.includes('date') || h.includes('time') || h.includes('dob') || h.includes('birth')) return 'date';
+  if (h.includes('phone') || h.includes('age') || h.includes('qty') || h.includes('amount') || h.includes('price') || h.includes('number') || h.includes('num') || h.includes('id')) return 'number';
+  if (typeof sampleVal === 'number') return 'number';
+  if (typeof sampleVal === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sampleVal.trim())) return 'email';
+  return 'text';
+}
+
+function updateType(colIdx, val) {
+  colTypes[colIdx] = val;
+  const dot = document.getElementById(`tdot-${colIdx}`);
+  dot.className = `tdot dot-${val}`;
+}
+
+/* ════ STEP 2 ════ */
+function goStep1() { show('step1'); }
+
+function goStep2() {
+  show('step2');
+  const body = document.getElementById('issues-body');
+  body.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:14px;font-size:12px;color:var(--t3)"><i class="ti ti-loader-2" style="animation:spin .8s linear infinite;display:inline-block;font-size:16px"></i> Scanning…</div>`;
+  document.getElementById('apply-btn').disabled = true;
+
+  setTimeout(() => {
+    analyseData();
+    renderIssues();
+    document.getElementById('apply-btn').disabled = false;
+  }, 350);
 }
 
 function analyseData() {
-  const body = document.getElementById('clean-body');
-  body.innerHTML = '<div class="scanning"><i class="ti ti-loader-2 spin"></i> Scanning your data…</div>';
-  document.getElementById('apply-btn').disabled = true;
-  document.getElementById('clean-sub').textContent = 'Analysing selection…';
+  const headers  = sel.values[0];
+  const dataRows = sel.values.slice(1);
 
-  // slight delay so the spinner shows
-  setTimeout(() => {
-    const values = currentSelection.values;
-    const headers = values[0];
-    const dataRows = values.slice(1);
-
-    // 1. BLANKS — rows where every cell is empty
-    const blanks = [];
+  /* 1. BLANKS — per column */
+  const blankCols = {};
+  headers.forEach((h, j) => {
+    const empties = [];
     dataRows.forEach((row, i) => {
-      if (row.every(c => c === null || c === '' || c === undefined)) {
-        blanks.push({ rowIndex: i + 2, preview: '(empty row)' });
+      const v = row[j];
+      if (v === null || v === undefined || v.toString().trim() === '') empties.push(i + 2);
+    });
+    if (empties.length) blankCols[j] = { header: h || `Col ${j+1}`, type: colTypes[j], count: empties.length, rows: empties };
+  });
+
+  /* 2. DUPLICATES */
+  const seen = {}, dupes = [];
+  dataRows.forEach((row, i) => {
+    const key = JSON.stringify(row);
+    if (seen[key] !== undefined) {
+      dupes.push({ rowIndex: i + 2, preview: row.filter(c => c !== '' && c !== null && c !== undefined).slice(0,4).join(' · '), firstAt: seen[key] + 2 });
+    } else { seen[key] = i; }
+  });
+
+  /* 3. FORMATTING — all string columns, check whitespace + mixed case */
+  const fmtCols = {};
+  headers.forEach((h, j) => {
+    if (colTypes[j] === 'number' || colTypes[j] === 'date') return;
+    let issues = 0;
+    dataRows.forEach(row => {
+      const v = row[j];
+      if (typeof v === 'string' && v !== '' && (v !== v.trim() || v !== v.trim())) issues++;
+    });
+    // always include every text/email col in formatting so user can choose format
+    fmtCols[j] = { header: h || `Col ${j+1}`, type: colTypes[j], issueCount: issues };
+  });
+
+  /* 4. EMAILS */
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const badEmails = [];
+  headers.forEach((h, j) => {
+    if (colTypes[j] !== 'email') return;
+    dataRows.forEach((row, i) => {
+      const v = row[j];
+      if (v && typeof v === 'string' && !emailRe.test(v.trim())) {
+        badEmails.push({ rowIndex: i + 2, colIdx: j, col: h, value: v });
       }
     });
+  });
 
-    // 2. DUPLICATES — rows with identical content
-    const seen = {};
-    const duplicates = [];
-    dataRows.forEach((row, i) => {
-      const key = JSON.stringify(row);
-      if (seen[key] !== undefined) {
-        duplicates.push({ rowIndex: i + 2, preview: row.filter(c => c !== '' && c !== null).slice(0, 3).join(' · '), firstAt: seen[key] + 2 });
-      } else {
-        seen[key] = i;
-      }
+  issues = { blankCols, dupes, fmtCols, badEmails };
+
+  const total = Object.keys(blankCols).length + dupes.length + badEmails.length;
+  document.getElementById('issues-sub').textContent = `Step 2 of 2 — ${total} issue${total!==1?'s':''} found`;
+}
+
+/* ════ RENDER ISSUES ════ */
+function renderIssues() {
+  const body = document.getElementById('issues-body');
+  body.innerHTML = '';
+  const { blankCols, dupes, fmtCols, badEmails } = issues;
+
+  /* ── Blanks ── */
+  const blankCount = Object.values(blankCols).reduce((s,c)=>s+c.count,0);
+  const blanksAcc = makeAcc('blanks', 'ti-circle-minus', 'var(--red)', 'Blank cells', blankCount, 'b-red');
+  const blanksBody = blanksAcc.querySelector('.acc-body');
+  if (!blankCount) {
+    blanksBody.innerHTML = '<div class="acc-empty">No blank cells found</div>';
+  } else {
+    Object.entries(blankCols).forEach(([j, col]) => {
+      const def = defaultVal(col.type);
+      const row = document.createElement('div');
+      row.className = 'blank-col-row';
+      row.innerHTML = `
+        <div class="tdot dot-${col.type}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="blank-col-name">${col.header}</div>
+          <div class="blank-col-meta">${col.count} blank cell${col.count!==1?'s':''} · ${col.type}</div>
+        </div>
+        <input class="blank-input" type="text" value="${def}" data-col="${j}" placeholder="Default value">`;
+      blanksBody.appendChild(row);
+    });
+  }
+  body.appendChild(blanksAcc);
+
+  /* ── Duplicates ── */
+  const dupesAcc = makeAcc('dupes', 'ti-copy', 'var(--amber)', 'Duplicate rows', dupes.length, 'b-amber');
+  const dupesBody = dupesAcc.querySelector('.acc-body');
+  if (!dupes.length) {
+    dupesBody.innerHTML = '<div class="acc-empty">No duplicate rows found</div>';
+  } else {
+    const selAllRow = document.createElement('label');
+    selAllRow.className = 'sel-all-row';
+    selAllRow.innerHTML = `<input type="checkbox" id="dupe-all" checked> Select all (${dupes.length})`;
+    selAllRow.querySelector('input').addEventListener('change', e => {
+      dupesBody.querySelectorAll('.dupe-cb').forEach(cb => cb.checked = e.target.checked);
+    });
+    dupesBody.appendChild(selAllRow);
+    dupes.forEach((d, idx) => {
+      const row = document.createElement('div');
+      row.className = 'dupe-row';
+      row.innerHTML = `
+        <input type="checkbox" class="dupe-cb" data-idx="${idx}" checked>
+        <span class="dupe-rnum">Row ${d.rowIndex}</span>
+        <span class="dupe-preview">${d.preview}</span>
+        <span class="dupe-tag">≡ row ${d.firstAt}</span>`;
+      dupesBody.appendChild(row);
+    });
+  }
+  body.appendChild(dupesAcc);
+
+  /* ── Formatting ── */
+  const fmtKeys = Object.keys(fmtCols);
+  const fmtAcc = makeAcc('fmt', 'ti-text-spellcheck', 'var(--acc)', 'Formatting', fmtKeys.length, 'b-blue');
+  const fmtBody = fmtAcc.querySelector('.acc-body');
+  if (!fmtKeys.length) {
+    fmtBody.innerHTML = '<div class="acc-empty">No text/email columns found</div>';
+  } else {
+    fmtKeys.forEach(j => {
+      const col = fmtCols[j];
+      const row = document.createElement('div');
+      row.className = 'fmt-col-row';
+      row.innerHTML = `
+        <div class="tdot dot-${col.type}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="fmt-col-name">${col.header}</div>
+          <div class="fmt-col-type">${col.type} · ${col.issueCount} whitespace issue${col.issueCount!==1?'s':''}</div>
+        </div>
+        <select class="fmt-select" data-col="${j}">
+          <option value="none">No change</option>
+          <option value="trim">Trim spaces</option>
+          <option value="lower">lowercase</option>
+          <option value="upper">UPPERCASE</option>
+          <option value="title">Title Case</option>
+          ${col.type==='email'?'<option value="email">Fix email</option>':''}
+        </select>`;
+      // auto-select trim if issues found
+      if (col.issueCount > 0) row.querySelector('select').value = 'trim';
+      fmtBody.appendChild(row);
     });
 
-    // 3. FORMATTING INCONSISTENCIES — cells with extra whitespace or mixed case
-    const formatting = [];
-    dataRows.forEach((row, i) => {
-      row.forEach((cell, j) => {
-        if (typeof cell === 'string' && cell !== cell.trim()) {
-          formatting.push({ rowIndex: i + 2, col: headers[j] || `Col ${j+1}`, preview: `"${cell}" → "${cell.trim()}"` });
-        }
+    // add column button
+    const addRow = document.createElement('div');
+    addRow.className = 'add-col-row';
+    addRow.innerHTML = `<button class="add-col-btn" id="add-fmt-col"><i class="ti ti-plus"></i> Add another column</button>`;
+    fmtBody.appendChild(addRow);
+
+    document.getElementById('add-fmt-col').addEventListener('click', () => {
+      const headers = sel.values[0];
+      // find cols not already in fmt list
+      const already = new Set(fmtKeys.map(Number));
+      const available = headers.map((h,i)=>({h,i})).filter(x=>!already.has(x.i));
+      if (!available.length) { showToast('All columns already listed.', false); return; }
+      // add first available
+      const next = available[0];
+      const col = { header: next.h || `Col ${next.i+1}`, type: colTypes[next.i], issueCount: 0 };
+      issues.fmtCols[next.i] = col;
+      fmtKeys.push(String(next.i));
+      const newRow = document.createElement('div');
+      newRow.className = 'fmt-col-row';
+      newRow.innerHTML = `
+        <div class="tdot dot-${col.type}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="fmt-col-name">${col.header}</div>
+          <div class="fmt-col-type">${col.type} · manually added</div>
+        </div>
+        <select class="fmt-select" data-col="${next.i}">
+          <option value="none">No change</option>
+          <option value="trim">Trim spaces</option>
+          <option value="lower">lowercase</option>
+          <option value="upper">UPPERCASE</option>
+          <option value="title">Title Case</option>
+        </select>`;
+      fmtBody.insertBefore(newRow, addRow);
+    });
+  }
+  body.appendChild(fmtAcc);
+
+  /* ── Emails ── */
+  const emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect emails', badEmails.length, 'b-amber');
+  const emailBody = emailAcc.querySelector('.acc-body');
+  if (!badEmails.length) {
+    emailBody.innerHTML = '<div class="acc-empty">No invalid emails found</div>';
+  } else {
+    badEmails.forEach((e, idx) => {
+      const row = document.createElement('div');
+      row.className = 'email-row';
+      row.innerHTML = `
+        <span class="email-rnum">Row ${e.rowIndex}</span>
+        <span class="email-val">${e.value}</span>
+        <input class="email-input" type="text" value="x@gmail.com" data-idx="${idx}" placeholder="Replacement">`;
+      emailBody.appendChild(row);
+    });
+  }
+  body.appendChild(emailAcc);
+}
+
+function makeAcc(id, icon, iconColor, label, count, badgeClass) {
+  const wrap = document.createElement('div');
+  wrap.className = 'acc';
+  wrap.innerHTML = `
+    <div class="acc-hdr" onclick="toggleAcc('${id}')">
+      <i class="ti ${icon} acc-hdr-icon" style="color:${iconColor}"></i>
+      <span class="acc-hdr-label">${label}</span>
+      <span class="badge ${badgeClass}">${count}</span>
+      <i class="ti ti-chevron-down acc-chev" id="chev-${id}"></i>
+    </div>
+    <div class="acc-body" id="abody-${id}"></div>`;
+  return wrap;
+}
+
+function toggleAcc(id) {
+  document.getElementById(`abody-${id}`).classList.toggle('open');
+  document.getElementById(`chev-${id}`).classList.toggle('open');
+}
+
+/* ════ DEFAULT VALUES ════ */
+function defaultVal(type) {
+  return { text:'N/A', number:'0', email:'x@gmail.com', date:'Unknown' }[type] || 'N/A';
+}
+
+/* ════ APPLY ════ */
+async function applyClean() {
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = true; btn.textContent = 'Creating sheet…';
+
+  try {
+    const headers  = sel.values[0];
+    let   dataRows = sel.values.slice(1).map(r => [...r]);
+
+    /* 1. fill blanks */
+    Object.entries(issues.blankCols).forEach(([j, col]) => {
+      const input = document.querySelector(`.blank-input[data-col="${j}"]`);
+      const fillVal = input ? input.value : defaultVal(col.type);
+      dataRows.forEach(row => {
+        if (row[j] === null || row[j] === undefined || row[j].toString().trim() === '') row[j] = fillVal;
       });
     });
 
-    // 4. INCORRECT EMAILS — basic email validation
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const emails = [];
-    headers.forEach((h, j) => {
-      if (typeof h === 'string' && h.toLowerCase().includes('email')) {
-        dataRows.forEach((row, i) => {
-          const val = row[j];
-          if (val && typeof val === 'string' && !emailRe.test(val.trim())) {
-            emails.push({ rowIndex: i + 2, col: h, value: val });
-          }
-        });
-      }
+    /* 2. remove checked dupes */
+    const dupeIdxToRemove = new Set();
+    document.querySelectorAll('.dupe-cb:checked').forEach(cb => {
+      dupeIdxToRemove.add(issues.dupes[+cb.dataset.idx].rowIndex - 2);
+    });
+    dataRows = dataRows.filter((_, i) => !dupeIdxToRemove.has(i));
+
+    /* 3. formatting */
+    document.querySelectorAll('.fmt-select').forEach(sel2 => {
+      const j = +sel2.dataset.col;
+      const mode = sel2.value;
+      if (mode === 'none') return;
+      dataRows.forEach(row => {
+        const v = row[j];
+        if (typeof v !== 'string' || v === '') return;
+        if (mode === 'trim')  row[j] = v.trim();
+        if (mode === 'lower') row[j] = v.trim().toLowerCase();
+        if (mode === 'upper') row[j] = v.trim().toUpperCase();
+        if (mode === 'title') row[j] = v.trim().replace(/\b\w/g, c => c.toUpperCase());
+        if (mode === 'email') row[j] = v.trim().toLowerCase();
+      });
     });
 
-    cleanResults = { blanks, duplicates, formatting, emails };
-
-    const total = blanks.length + duplicates.length + formatting.length + emails.length;
-    document.getElementById('clean-sub').textContent =
-      total === 0 ? 'No issues found' : `${total} issue${total !== 1 ? 's' : ''} found`;
-
-    renderCleanPanel();
-    document.getElementById('apply-btn').disabled = false;
-  }, 400);
-}
-
-function renderCleanPanel() {
-  const { blanks, duplicates, formatting, emails } = cleanResults;
-  const body = document.getElementById('clean-body');
-  body.innerHTML = '';
-
-  body.appendChild(makeSection({
-    id: 'sec-blanks',
-    icon: 'ti-circle-minus',
-    iconColor: 'var(--red)',
-    label: 'Blank rows',
-    badge: blanks.length,
-    badgeClass: 'badge-red',
-    items: blanks,
-    renderItem: (item) => `<span class="row-num">Row ${item.rowIndex}</span><span class="row-preview">${item.preview}</span>`,
-    emptyText: 'No blank rows found'
-  }));
-
-  body.appendChild(makeSection({
-    id: 'sec-dupes',
-    icon: 'ti-copy',
-    iconColor: 'var(--amber)',
-    label: 'Duplicate rows',
-    badge: duplicates.length,
-    badgeClass: 'badge-amber',
-    items: duplicates,
-    renderItem: (item) => `<span class="row-num">Row ${item.rowIndex}</span><span class="row-preview">${item.preview}</span><span class="row-tag badge badge-amber">dupe of ${item.firstAt}</span>`,
-    emptyText: 'No duplicate rows found'
-  }));
-
-  body.appendChild(makeSection({
-    id: 'sec-fmt',
-    icon: 'ti-text-spellcheck',
-    iconColor: 'var(--acc)',
-    label: 'Formatting inconsistencies',
-    badge: formatting.length,
-    badgeClass: 'badge-blue',
-    items: formatting,
-    renderItem: (item) => `<span class="row-num">Row ${item.rowIndex}</span><span class="row-preview">[${item.col}] ${item.preview}</span>`,
-    emptyText: 'No whitespace issues found'
-  }));
-
-  body.appendChild(makeSection({
-    id: 'sec-email',
-    icon: 'ti-mail-x',
-    iconColor: 'var(--amber)',
-    label: 'Incorrect emails',
-    badge: emails.length,
-    badgeClass: 'badge-amber',
-    items: emails,
-    renderItem: (item) => `<span class="row-num">Row ${item.rowIndex}</span><span class="row-preview">[${item.col}] ${item.value}</span>`,
-    emptyText: 'No email issues found'
-  }));
-}
-
-function makeSection({ id, icon, iconColor, label, badge, badgeClass, items, renderItem, emptyText }) {
-  const sec = document.createElement('div');
-  sec.className = 'acc-section';
-  sec.id = id;
-
-  const hdr = document.createElement('div');
-  hdr.className = 'acc-header';
-  hdr.innerHTML = `
-    <i class="ti ${icon} acc-icon" style="color:${iconColor}"></i>
-    <span class="acc-label">${label}</span>
-    <span class="badge ${badgeClass}">${badge}</span>
-    <i class="ti ti-chevron-down acc-chevron" id="${id}-chev"></i>
-  `;
-  hdr.addEventListener('click', () => toggleSection(id));
-
-  const bdy = document.createElement('div');
-  bdy.className = 'acc-body';
-  bdy.id = `${id}-body`;
-
-  if (items.length === 0) {
-    bdy.innerHTML = `<div class="acc-empty">${emptyText}</div>`;
-  } else {
-    // select-all row
-    const selAll = document.createElement('label');
-    selAll.className = 'select-all-row';
-    selAll.innerHTML = `<input type="checkbox" checked id="${id}-all"> Select all (${items.length})`;
-    selAll.querySelector('input').addEventListener('change', (e) => {
-      bdy.querySelectorAll('.row-cb').forEach(cb => cb.checked = e.target.checked);
-    });
-    bdy.appendChild(selAll);
-
-    const list = document.createElement('div');
-    list.className = 'row-list';
-    items.forEach((item, idx) => {
-      const row = document.createElement('div');
-      row.className = 'row-item';
-      row.innerHTML = `<input type="checkbox" class="row-cb" data-section="${id}" data-idx="${idx}" checked>${renderItem(item)}`;
-      list.appendChild(row);
-    });
-    bdy.appendChild(list);
-  }
-
-  sec.appendChild(hdr);
-  sec.appendChild(bdy);
-  return sec;
-}
-
-function toggleSection(id) {
-  const bdy = document.getElementById(`${id}-body`);
-  const chev = document.getElementById(`${id}-chev`);
-  bdy.classList.toggle('open');
-  chev.classList.toggle('open');
-}
-
-/* ── APPLY ── */
-async function applyClean() {
-  const btn = document.getElementById('apply-btn');
-  btn.disabled = true;
-  btn.textContent = 'Creating cleaned sheet…';
-
-  try {
-    // figure out which rows to REMOVE
-    const rowsToRemove = new Set();
-
-    // blanks
-    document.querySelectorAll('#sec-blanks .row-cb:checked').forEach((cb) => {
-      const idx = parseInt(cb.dataset.idx);
-      rowsToRemove.add(cleanResults.blanks[idx].rowIndex - 2); // 0-based data index
-    });
-    // duplicates
-    document.querySelectorAll('#sec-dupes .row-cb:checked').forEach((cb) => {
-      const idx = parseInt(cb.dataset.idx);
-      rowsToRemove.add(cleanResults.duplicates[idx].rowIndex - 2);
+    /* 4. fix emails */
+    document.querySelectorAll('.email-input').forEach(inp => {
+      const idx = +inp.dataset.idx;
+      const e = issues.badEmails[idx];
+      // find the actual row (accounting for removed dupes — use rowIndex)
+      const dataIdx = e.rowIndex - 2;
+      if (dataRows[dataIdx] !== undefined) dataRows[dataIdx][e.colIdx] = inp.value;
     });
 
-    // rows to fix (formatting)
-    const formattingFixes = new Set();
-    document.querySelectorAll('#sec-fmt .row-cb:checked').forEach((cb) => {
-      formattingFixes.add(parseInt(cb.dataset.idx));
-    });
+    const cleanedData = [headers, ...dataRows];
 
-    const original = currentSelection.values;
-    const headers = original[0];
-    let dataRows = original.slice(1);
-
-    // apply formatting fixes
-    formattingFixes.forEach(idx => {
-      const item = cleanResults.formatting[idx];
-      const colIdx = headers.indexOf(item.col);
-      if (colIdx >= 0 && dataRows[item.rowIndex - 2]) {
-        dataRows[item.rowIndex - 2][colIdx] = dataRows[item.rowIndex - 2][colIdx].trim();
-      }
-    });
-
-    // filter out removed rows
-    const cleanedData = [headers, ...dataRows.filter((_, i) => !rowsToRemove.has(i))];
-
-    await Excel.run(async (ctx) => {
+    await Excel.run(async ctx => {
       const sheets = ctx.workbook.worksheets;
       sheets.load('items/name');
       await ctx.sync();
-
-      // find unique sheet name
       const existing = sheets.items.map(s => s.name);
-      let newName = 'Cleaned Data';
-      let counter = 1;
-      while (existing.includes(newName)) { newName = `Cleaned Data ${counter++}`; }
-
-      const newSheet = sheets.add(newName);
-      const targetRange = newSheet.getRangeByIndexes(0, 0, cleanedData.length, cleanedData[0].length);
-      targetRange.values = cleanedData;
-
-      // bold header row
-      newSheet.getRangeByIndexes(0, 0, 1, cleanedData[0].length).format.font.bold = true;
-
-      newSheet.activate();
+      let name = 'Cleaned Data'; let n = 1;
+      while (existing.includes(name)) name = `Cleaned Data ${n++}`;
+      const ns = sheets.add(name);
+      ns.getRangeByIndexes(0, 0, cleanedData.length, cleanedData[0].length).values = cleanedData;
+      ns.getRangeByIndexes(0, 0, 1, cleanedData[0].length).format.font.bold = true;
+      ns.activate();
       await ctx.sync();
     });
 
-    showToast(`✓ Cleaned sheet created!`, false);
-    showHome();
+    showToast('✓ Cleaned sheet created!', false);
+    goHome();
   } catch(e) {
     showToast(e.message, true);
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Apply & create cleaned sheet';
+    btn.disabled = false; btn.textContent = 'Apply & create cleaned sheet';
   }
 }
 
-/* ── toast ── */
-function showToast(msg, isErr) {
+/* ════ TOAST ════ */
+function showToast(msg, err) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = isErr ? 'err' : '';
+  t.textContent = msg; t.className = err ? 'err' : '';
   t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 3500);
+  clearTimeout(t._t); t._t = setTimeout(() => t.style.display='none', 3500);
 }
 </script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </body>
 </html>
