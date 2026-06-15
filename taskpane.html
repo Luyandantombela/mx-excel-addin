@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MX Sheet Toolkit</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#111318;--s1:#1a1d24;--s2:#21242d;--s3:#272b35;
+  --b1:#2e3240;--b2:#3a3f52;
+  --acc:#4f8ef7;--acc2:#2563d4;--acc-bg:#0e1e3d;
+  --t1:#f0ede8;--t2:#c8c4bc;--t3:#7a7f90;--t4:#4a4f60;
+  --mono:'IBM Plex Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-serif;color:var(--t1)}
+#app{display:flex;flex-direction:column;height:100vh;padding:14px;gap:14px;overflow-y:auto}
+
+.header{display:flex;flex-direction:column;gap:4px}
+.header h1{font-size:15px;font-weight:600;letter-spacing:.02em}
+.header p{font-size:11.5px;color:var(--t3)}
+
+.sel-box{
+  background:var(--s1);border:1px solid var(--b1);border-radius:8px;
+  padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--t2);
+}
+.sel-box .sel-label{color:var(--t3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.sel-box .sel-addr{color:var(--acc);font-weight:600}
+.sel-box .sel-count{color:var(--t3);margin-top:2px}
+
+#refresh-btn{
+  margin-top:8px;font-size:11px;font-weight:600;color:var(--t2);
+  background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+  padding:6px 10px;cursor:pointer;display:flex;align-items:center;gap:6px;
+}
+#refresh-btn:hover{background:var(--s3);border-color:var(--b2);color:var(--t1)}
+
+.feature-list{display:flex;flex-direction:column;gap:8px}
+.feature-btn{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;
+  background:var(--s1);border:1px solid var(--b1);border-radius:8px;
+  cursor:pointer;transition:all .12s;text-align:left;color:var(--t1);
+  font-family:'IBM Plex Sans',sans-serif;
+}
+.feature-btn:hover{background:var(--s2);border-color:var(--b2)}
+.feature-btn.active{background:var(--acc-bg);border-color:var(--acc)}
+.feature-btn i{font-size:18px;color:var(--acc);flex-shrink:0;width:22px;text-align:center}
+.feature-btn .ft-text{display:flex;flex-direction:column;gap:1px}
+.feature-btn .ft-title{font-size:12.5px;font-weight:600}
+.feature-btn .ft-desc{font-size:10.5px;color:var(--t3)}
+
+#feature-panel{
+  flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:8px;
+  padding:14px;font-size:12px;color:var(--t2);min-height:120px;
+}
+#feature-panel.empty{display:flex;align-items:center;justify-content:center;color:var(--t4);font-size:11.5px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>MX Sheet Toolkit</h1>
+    <p>Select cells in your sheet, then pick a feature below.</p>
+  </div>
+
+  <div class="sel-box">
+    <div class="sel-label">Current Selection</div>
+    <div class="sel-addr" id="sel-addr">—</div>
+    <div class="sel-count" id="sel-count">No selection yet</div>
+    <button id="refresh-btn"><i class="ti ti-refresh"></i>Refresh selection</button>
+  </div>
+
+  <div class="feature-list">
+    <button class="feature-btn" data-feature="clean">
+      <i class="ti ti-sparkles"></i>
+      <div class="ft-text"><span class="ft-title">Clean a sheet</span><span class="ft-desc">Trim, fix casing, remove duplicates/blanks</span></div>
+    </button>
+    <button class="feature-btn" data-feature="search-row">
+      <i class="ti ti-list-search"></i>
+      <div class="ft-text"><span class="ft-title">Search for a row</span><span class="ft-desc">Find rows matching a value or condition</span></div>
+    </button>
+    <button class="feature-btn" data-feature="bulk">
+      <i class="ti ti-stack-2"></i>
+      <div class="ft-text"><span class="ft-title">Bulk manipulation</span><span class="ft-desc">Apply changes across many rows at once</span></div>
+    </button>
+    <button class="feature-btn" data-feature="edit-column">
+      <i class="ti ti-edit"></i>
+      <div class="ft-text"><span class="ft-title">Edit column</span><span class="ft-desc">Transform or update a whole column</span></div>
+    </button>
+    <button class="feature-btn" data-feature="compare">
+      <i class="ti ti-layers-difference"></i>
+      <div class="ft-text"><span class="ft-title">Compare sheets</span><span class="ft-desc">Diff two sheets or ranges</span></div>
+    </button>
+    <button class="feature-btn" data-feature="add-sheet">
+      <i class="ti ti-file-plus"></i>
+      <div class="ft-text"><span class="ft-title">Add a sheet</span><span class="ft-desc">Create a new sheet in this workbook</span></div>
+    </button>
+    <button class="feature-btn" data-feature="search-sheet">
+      <i class="ti ti-folder-search"></i>
+      <div class="ft-text"><span class="ft-title">Search for a sheet</span><span class="ft-desc">Find and jump to a sheet by name</span></div>
+    </button>
+  </div>
+
+  <div id="feature-panel" class="empty">Pick a feature to see options here.</div>
+</div>
+
+<script>
+let currentSelection = null;
+
+Office.onReady(() => {
+  document.getElementById('refresh-btn').addEventListener('click', readSelection);
+  document.querySelectorAll('.feature-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectFeature(btn));
+  });
+  readSelection();
+});
+
+async function readSelection() {
+  try {
+    await Excel.run(async (context) => {
+      const range = context.workbook.getSelectedRange();
+      range.load(['address', 'values', 'rowCount', 'columnCount']);
+      await context.sync();
+
+      currentSelection = {
+        address: range.address,
+        values: range.values,
+        rowCount: range.rowCount,
+        columnCount: range.columnCount
+      };
+
+      document.getElementById('sel-addr').textContent = range.address;
+      document.getElementById('sel-count').textContent =
+        `${range.rowCount} row(s) x ${range.columnCount} column(s)`;
+    });
+  } catch (err) {
+    document.getElementById('sel-addr').textContent = 'Error';
+    document.getElementById('sel-count').textContent = err.message;
+  }
+}
+
+function selectFeature(btn) {
+  document.querySelectorAll('.feature-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const feature = btn.dataset.feature;
+  const panel = document.getElementById('feature-panel');
+  panel.classList.remove('empty');
+
+  const titles = {
+    'clean': 'Clean a sheet',
+    'search-row': 'Search for a row',
+    'bulk': 'Bulk manipulation',
+    'edit-column': 'Edit column',
+    'compare': 'Compare sheets',
+    'add-sheet': 'Add a sheet',
+    'search-sheet': 'Search for a sheet'
+  };
+
+  const sel = currentSelection
+    ? `Selection: <strong>${currentSelection.address}</strong> (${currentSelection.rowCount}x${currentSelection.columnCount})`
+    : 'No selection captured yet — click Refresh selection.';
+
+  panel.innerHTML = `
+    <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--t1)">${titles[feature]}</div>
+    <div style="margin-bottom:10px;font-size:11.5px;color:var(--t3)">${sel}</div>
+    <div style="font-size:11.5px;color:var(--t4)">Options for this feature will go here — tell me what should happen when this is clicked.</div>
+  `;
+}
+</script>
+</body>
+</html>
