@@ -12,12 +12,12 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="MX Sheet Toolkit"/>
   <Description DefaultValue="Clean, search, edit and compare data directly from a selection."/>
-  <IconUrl DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/assets/icon-80.png"/>
-  <SupportUrl DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/"/>
+  <IconUrl DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/"/>
 
   <AppDomains>
-    <AppDomain>https://YOUR_USERNAME.github.io</AppDomain>
+    <AppDomain>https://Luyandantombela.github.io</AppDomain>
   </AppDomains>
 
   <Hosts>
@@ -25,7 +25,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/taskpane.html"/>
+    <SourceLocation DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/taskpane.html"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -70,13 +70,13 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/assets/icon-80.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/taskpane.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://YOUR_USERNAME.github.io/YOUR_REPO/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/taskpane.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="MXGroup.Label" DefaultValue="MX Toolkit"/>
