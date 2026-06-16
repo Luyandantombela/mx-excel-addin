@@ -885,9 +885,14 @@ function applyClean() {
         if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(v, targetFmt);
       });
     } else if (col.issueType === 'number') {
-      var decMode  = col.chosenDecimals  || 'keep';
-      var txtMode  = col.chosenNumtext   || 'keep';
-      var thouMode = col.chosenThousands || 'none';
+      /* Read directly from the DOM selects as the source of truth —
+         this guarantees the correct value even if onchange misfired. */
+      var decSel  = document.querySelector('.fmt-control[data-col="' + jNum + '"][data-mode="decimals"]');
+      var txtSel  = document.querySelector('.fmt-control[data-col="' + jNum + '"][data-mode="numtext"]');
+      var thouSel = document.querySelector('.fmt-control[data-col="' + jNum + '"][data-mode="thousands"]');
+      var decMode  = decSel  ? decSel.value  : (col.chosenDecimals  || 'keep');
+      var txtMode  = txtSel  ? txtSel.value  : (col.chosenNumtext   || 'keep');
+      var thouMode = thouSel ? thouSel.value : (col.chosenThousands || 'none');
       /* skip entirely if nothing changes */
       if (decMode === 'keep' && txtMode === 'keep' && thouMode === 'none') return;
 
@@ -901,20 +906,34 @@ function applyClean() {
       */
       function splitNumericParts(s) {
         s = String(s).trim();
-        /* Find the first digit (may be preceded by sign, currency symbols, letters, spaces) */
+        /* Find the first digit */
         var firstDigit = s.search(/\d/);
-        if (firstDigit < 0) return null; /* no digit at all */
+        if (firstDigit < 0) return null; /* no digits at all */
         var prefix = s.slice(0, firstDigit);
-        /* Find the last digit */
-        var lastDigit = s.search(/\d(?=[^\d]*($))/);
-        /* Everything from firstDigit to lastDigit (inclusive) is the numeric body */
+        var sign = prefix.indexOf('-') >= 0 ? '-' : '';
+
+        /* Find the last digit in the string */
+        var lastDigit = -1;
+        for (var i = s.length - 1; i >= 0; i--) {
+          if (/\d/.test(s[i])) { lastDigit = i; break; }
+        }
+
+        /* Numeric body = everything from first digit to last digit (inclusive).
+           This correctly captures "2 000", "1,200.50", "1 200.50" etc. */
         var numBody = s.slice(firstDigit, lastDigit + 1);
         var suffix  = s.slice(lastDigit + 1);
-        /* Strip thousands separators (commas, spaces used as separators) from body
-           but keep the decimal dot and leading minus if present */
-        var sign = prefix.indexOf('-') >= 0 ? '-' : '';
-        /* Remove any non-digit non-dot chars from numBody to get a clean float string */
+
+        /* Strip any non-digit non-dot chars from the body to get a parseable float.
+           This handles comma-thousands ("1,200"), space-thousands ("2 000"), etc. */
         var cleanCore = numBody.replace(/[^0-9.]/g, '');
+        /* Guard against multiple dots (e.g. period-thousands "1.200.50" → keep only last dot) */
+        var dotCount = (cleanCore.match(/\./g) || []).length;
+        if (dotCount > 1) {
+          /* Treat all but the last dot as thousands separators — remove them */
+          var lastDot = cleanCore.lastIndexOf('.');
+          cleanCore = cleanCore.slice(0, lastDot).replace(/\./g, '') + cleanCore.slice(lastDot);
+        }
+
         return { prefix: prefix, sign: sign, core: cleanCore, suffix: suffix };
       }
 
@@ -953,12 +972,12 @@ function applyClean() {
         if (thouMode !== 'none') {
           var fp = formatted.split('.');
           var intPart = fp[0];
-          var decPart = fp[1]; /* may be undefined when resolvedDp===0 */
+          var decPart = fp.length > 1 ? fp[1] : null;
           var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
           intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
           /* period-thousands: use comma as decimal separator to avoid ambiguity */
           var decSepChar = thouMode === 'period' ? ',' : '.';
-          numStr = (decPart !== undefined) ? intPart + decSepChar + decPart : intPart;
+          numStr = (decPart !== null) ? intPart + decSepChar + decPart : intPart;
         } else {
           /* no thousands sep — just the number digits */
           numStr = formatted;
