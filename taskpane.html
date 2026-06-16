@@ -474,9 +474,10 @@ function analyseData() {
         var dp = parts.length > 1 ? parts[1].length : 0;
         decimalCounts[dp] = (decimalCounts[dp] || 0) + 1;
       });
-      var hasTextChars = colVals.some(function(v){ return /[^\d.\-,\s]/.test(String(v)); });
+      /* hasNonNumeric: any character that isn't a digit, dot, minus, comma, or space */
+      var hasNonNumeric = colVals.some(function(v){ return /[^\d.\-,\s]/.test(String(v)); });
       /* Always offer number formatting */
-      fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'number', issueCount: colVals.length, decimalCounts: decimalCounts, hasTextChars: hasTextChars };
+      fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'number', issueCount: colVals.length, decimalCounts: decimalCounts, hasNonNumeric: hasNonNumeric };
     }
   });
 
@@ -551,6 +552,11 @@ function buildFmtRow(j, col) {
         '<option value="MM/DD/YYYY">MM/DD/YYYY</option>' +
       '</select>';
   } else if (col.issueType === 'number') {
+    /* Ensure defaults are written to the data object immediately so applyClean
+       reads the correct values even if the user never touches a dropdown. */
+    col.chosenDecimals  = col.chosenDecimals  || 'keep';
+    col.chosenNumtext   = col.chosenNumtext   || 'keep';
+    col.chosenThousands = col.chosenThousands || 'none';
     controlsHtml =
       '<div style="display:flex;flex-direction:column;gap:6px;width:160px">' +
         '<div style="display:flex;gap:6px;align-items:center">' +
@@ -563,7 +569,7 @@ function buildFmtRow(j, col) {
           '</select>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center">' +
-          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Text chars:</span>' +
+          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Non-num:</span>' +
           '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="numtext" style="font-size:11px;flex:1;padding:4px 6px"' +
             ' onchange="issues.fmtCols[' + j + '].chosenNumtext=this.value">' +
             '<option value="keep" selected>Keep</option>' +
@@ -891,7 +897,7 @@ function applyClean() {
         dataRows.forEach(function(row) {
           var v = row[jNum];
           if (v === '' || v === null || v === undefined) return;
-          var cl = String(v).trim(); if (txtMode === 'remove') cl = cl.replace(/[^0-9.\-]/g, ''); cl = cl.replace(/[,\s]/g, '');
+          var cl = String(v).trim().replace(/[^0-9.\-]/g, '');
           if (cl.indexOf('.') >= 0) maxDp = Math.max(maxDp, cl.split('.')[1].length);
         });
         /* if no source values have decimals but a thousands separator is chosen,
@@ -904,9 +910,8 @@ function applyClean() {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v).trim();
-        if (txtMode === 'remove') s = s.replace(/[^0-9.\-]/g, '');
-        /* strip any existing thousand separators before parsing */
-        var cleaned = s.replace(/[,\s]/g, '');
+        /* Always strip non-numeric chars + separators for reliable parsing */
+        var cleaned = s.replace(/[^0-9.\-]/g, '');
         var num = parseFloat(cleaned);
         if (isNaN(num)) return; /* unparseable — leave unchanged */
         /* ── decimal places: uniform dp across every value in the column ── */
