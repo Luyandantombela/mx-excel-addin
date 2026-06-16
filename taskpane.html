@@ -416,16 +416,44 @@ function analyseData() {
     } else { seen[key] = i; }
   });
 
-  /* formatting — every text/email column */
+  /* formatting — detect real inconsistencies per column type */
   var fmtCols = {};
   headers.forEach(function(h, j) {
-    if (colTypes[j] === 'number' || colTypes[j] === 'date') return;
-    var issueCount = 0;
-    dataRows.forEach(function(row) {
-      var v = row[j];
-      if (typeof v === 'string' && v !== '' && v !== v.trim()) issueCount++;
-    });
-    fmtCols[j] = { header: h || ('Col ' + (j+1)), type: colTypes[j], issueCount: issueCount };
+    var type = colTypes[j];
+    var colVals = dataRows.map(function(row){ return row[j]; }).filter(function(v){ return v !== '' && v !== null && v !== undefined; });
+    if (!colVals.length) return;
+
+    if (type === 'text' || type === 'email') {
+      var patterns = {};
+      colVals.forEach(function(v){
+        var p = getCasingPattern(String(v));
+        patterns[p] = (patterns[p] || 0) + 1;
+      });
+      if (Object.keys(patterns).length > 1) {
+        fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'casing', issueCount: colVals.length, patterns: patterns };
+      }
+    } else if (type === 'date') {
+      var dformats = {};
+      colVals.forEach(function(v){
+        var f = detectDateFormat(String(v));
+        dformats[f] = (dformats[f] || 0) + 1;
+      });
+      if (Object.keys(dformats).length > 1) {
+        fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'date', issueCount: colVals.length, formats: dformats };
+      }
+    } else if (type === 'number') {
+      var decimalCounts = {};
+      colVals.forEach(function(v){
+        var s = String(v).replace(/[^0-9.\-]/g, '');
+        var parts = s.split('.');
+        var dp = parts.length > 1 ? parts[1].length : 0;
+        decimalCounts[dp] = (decimalCounts[dp] || 0) + 1;
+      });
+      var hasTextChars = colVals.some(function(v){ return /[^\d.\-,\s]/.test(String(v)); });
+      if (Object.keys(decimalCounts).length > 1 || hasTextChars) {
+        fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'number', issueCount: colVals.length, decimalCounts: decimalCounts, hasTextChars: hasTextChars };
+      }
+    }
   });
 
   /* bad emails */
@@ -444,8 +472,63 @@ function analyseData() {
   issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, badEmails: badEmails };
   fmtColKeys = Object.keys(fmtCols);
 
-  var total = Object.keys(blankCols).length + dupes.length + badEmails.length;
+  var total = Object.keys(blankCols).length + dupes.length + fmtColKeys.length + badEmails.length;
   document.getElementById('issues-sub').textContent = 'Step 2 of 2 — ' + total + ' issue' + (total!==1?'s':'') + ' found';
+}
+
+/* ── casing pattern detection (matches original site logic) ── */
+function getCasingPattern(text) {
+  if (!text) return 'unknown';
+  var t = text.trim();
+  if (!t) return 'unknown';
+  if (t === t.toUpperCase() && /[A-Z]/.test(t)) return 'upper';
+  if (t === t.toLowerCase()) return 'lower';
+  var words = t.split(/\s+/).filter(function(w){ return w.length > 0; });
+  var isTitle = words.every(function(w){
+    if (w.length === 0) return true;
+    if (w === w.toUpperCase() && w.length <= 3) return true;
+    return w[0] === w[0].toUpperCase() && w.slice(1) === w.slice(1).toLowerCase();
+  });
+  if (isTitle) return 'title';
+  return 'mixed';
+}
+
+function applyCasing(text, pattern) {
+  if (!text) return text;
+  if (pattern === 'upper') return text.toUpperCase();
+  if (pattern === 'lower') return text.toLowerCase();
+  if (pattern === 'title') return text.toLowerCase().replace(/(?:^|\s)\S/g, function(c){ return c.toUpperCase(); });
+  return text;
+}
+
+/* ── date format detection (matches original site logic) ── */
+function detectDateFormat(s) {
+  if (!s) return 'unknown';
+  s = s.trim();
+  if (/^\d{4}[-\/]\d{2}[-\/]\d{2}$/.test(s)) return 'YYYY/MM/DD';
+  if (/^\d{2}[-\/]\d{2}[-\/]\d{4}$/.test(s)) {
+    var parts = s.split(/[-\/]/);
+    if (parseInt(parts[0]) > 12) return 'DD/MM/YYYY';
+    return 'MM/DD/YYYY';
+  }
+  return 'unknown';
+}
+
+function normalizeDate(dateStr, targetFormat) {
+  if (!dateStr) return dateStr;
+  var s = String(dateStr).trim(), year, month, day;
+  var iso = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
+  if (iso) { year = iso[1]; month = iso[2]; day = iso[3]; }
+  else {
+    var dmy = s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);
+    if (dmy) { day = dmy[1]; month = dmy[2]; year = dmy[3]; }
+    else return dateStr;
+  }
+  if (targetFormat === 'YYYY/MM/DD') return year+'/'+month+'/'+day;
+  if (targetFormat === 'YYYY-MM-DD') return year+'-'+month+'-'+day;
+  if (targetFormat === 'DD/MM/YYYY') return day+'/'+month+'/'+year;
+  if (targetFormat === 'MM/DD/YYYY') return month+'/'+day+'/'+year;
+  return year+'/'+month+'/'+day;
 }
 
 /* ════ RENDER ISSUES ════ */
@@ -503,46 +586,70 @@ function renderIssues() {
   }
   body.appendChild(dupesAcc);
 
-  /* ── Formatting — exact pattern: original -> fixed error-items ── */
-  var fmtIssueList = [];
-  fmtColKeys.forEach(function(j) {
-    var col = fc[j];
-    var dataRows = sel.values.slice(1);
-    dataRows.forEach(function(row, i) {
-      var v = row[j];
-      if (typeof v === 'string' && v !== '' && v !== v.trim()) {
-        fmtIssueList.push({ colIdx: j, col: col.header, rowIndex: i+2, original: v, suggested: v.trim() });
-      }
-    });
-  });
-
-  var fmtAcc = makeAcc('fmt', 'ti-text-spellcheck', 'var(--acc)', 'Formatting Inconsistencies', fmtIssueList.length, 'b-blue');
+  /* ── Formatting — per-column rows with type-specific controls ── */
+  var fmtAcc = makeAcc('fmt', 'ti-text-spellcheck', 'var(--acc)', 'Formatting Inconsistencies', fmtColKeys.length, 'b-blue');
   var fmtBody = fmtAcc.querySelector('.acc-body');
   var fmtInner = document.createElement('div');
-  fmtInner.style.padding = '12px 14px';
-  if (!fmtIssueList.length) {
-    fmtInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:8px 0">No formatting inconsistencies found</div>';
+  fmtInner.style.padding = '4px 0';
+
+  if (!fmtColKeys.length) {
+    fmtInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:12px 14px">No formatting inconsistencies found</div>';
   } else {
-    fmtIssueList.forEach(function(e, idx) {
+    fmtColKeys.forEach(function(j) {
+      var col = fc[j];
       var row = document.createElement('div');
-      row.className = 'error-item';
+      row.className = 'fmt-col-row';
+
+      var controlsHtml = '';
+      if (col.issueType === 'casing') {
+        controlsHtml =
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="casing" style="font-size:11px;width:140px">' +
+            '<option value="keep">Keep as is</option>' +
+            '<option value="upper">UPPER CASE</option>' +
+            '<option value="lower">lower case</option>' +
+            '<option value="title" selected>Title Case</option>' +
+          '</select>';
+      } else if (col.issueType === 'date') {
+        controlsHtml =
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="date" style="font-size:11px;width:140px">' +
+            '<option value="YYYY/MM/DD" selected>YYYY/MM/DD</option>' +
+            '<option value="YYYY-MM-DD">YYYY-MM-DD</option>' +
+            '<option value="DD/MM/YYYY">DD/MM/YYYY</option>' +
+            '<option value="MM/DD/YYYY">MM/DD/YYYY</option>' +
+          '</select>';
+      } else if (col.issueType === 'number') {
+        controlsHtml =
+          '<div style="display:flex;flex-direction:column;gap:6px;width:150px">' +
+            '<div style="display:flex;gap:6px;align-items:center">' +
+              '<span style="font-size:10px;color:var(--t3);flex-shrink:0">Decimals:</span>' +
+              '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="decimals" style="font-size:11px;flex:1;padding:4px 6px">' +
+                '<option value="keep">Keep as is</option>' +
+                '<option value="0">0</option><option value="1">1</option>' +
+                '<option value="2" selected>2</option><option value="3">3</option>' +
+              '</select>' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;align-items:center">' +
+              '<span style="font-size:10px;color:var(--t3);flex-shrink:0">Text chars:</span>' +
+              '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="numtext" style="font-size:11px;flex:1;padding:4px 6px">' +
+                '<option value="keep">Keep</option>' +
+                '<option value="remove" selected>Remove</option>' +
+              '</select>' +
+            '</div>' +
+          '</div>';
+      }
+
       row.innerHTML =
-        '<div>' +
-          '<div class="error-label error-left">Original</div>' +
-          '<div class="error-orig">' + e.original + '</div>' +
-          '<div class="error-col">in column "' + e.col + '"</div>' +
+        '<div class="tdot dot-' + col.type + '"></div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="fmt-col-name">' + col.header + '</div>' +
+          '<div class="fmt-col-type">' + col.type + ' · ' + col.issueCount + ' value' + (col.issueCount!==1?'s':'') + ' affected</div>' +
         '</div>' +
-        '<span class="error-arrow"><i class="ti ti-arrow-right"></i></span>' +
-        '<div>' +
-          '<div class="error-label error-right">Fixed</div>' +
-          '<input class="p-inp" style="font-size:11px" value="' + e.suggested + '" data-fmt-idx="' + idx + '">' +
-        '</div>';
+        controlsHtml;
       fmtInner.appendChild(row);
     });
   }
   fmtBody.appendChild(fmtInner);
   body.appendChild(fmtAcc);
-  issues.fmtIssueList = fmtIssueList;
 
   /* ── Incorrect emails — exact pattern: replace-all row + original->fixed error-items ── */
   var emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect Emails', be.length, 'b-amber');
@@ -642,13 +749,43 @@ function applyClean() {
   });
   dataRows = dataRows.filter(function(_, i){ return !dupeIdxToRemove.has(i); });
 
-  /* 3. formatting — apply each original->fixed pair by row+col */
-  document.querySelectorAll('.p-inp[data-fmt-idx]').forEach(function(inp) {
-    var idx = +inp.dataset.fmtIdx;
-    var item = issues.fmtIssueList[idx];
-    if (!item) return;
-    var dataIdx = item.rowIndex - 2;
-    if (dataRows[dataIdx] !== undefined) dataRows[dataIdx][item.colIdx] = inp.value;
+  /* 3. formatting — apply per-column control based on issue type */
+  Object.keys(issues.fmtCols).forEach(function(j) {
+    var col = issues.fmtCols[j];
+    var jNum = +j;
+
+    if (col.issueType === 'casing') {
+      var sel1 = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="casing"]');
+      var mode = sel1 ? sel1.value : 'keep';
+      if (mode === 'keep') return;
+      dataRows.forEach(function(row) {
+        var v = row[jNum];
+        if (typeof v === 'string' && v.trim() !== '') row[jNum] = applyCasing(v, mode);
+      });
+    } else if (col.issueType === 'date') {
+      var sel2 = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="date"]');
+      var targetFmt = sel2 ? sel2.value : 'YYYY/MM/DD';
+      dataRows.forEach(function(row) {
+        var v = row[jNum];
+        if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(String(v), targetFmt);
+      });
+    } else if (col.issueType === 'number') {
+      var decSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="decimals"]');
+      var txtSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="numtext"]');
+      var decMode = decSel ? decSel.value : 'keep';
+      var txtMode = txtSel ? txtSel.value : 'keep';
+      dataRows.forEach(function(row) {
+        var v = row[jNum];
+        if (v === '' || v === null || v === undefined) return;
+        var s = String(v);
+        if (txtMode === 'remove') s = s.replace(/[^0-9.\-]/g, '');
+        if (decMode !== 'keep') {
+          var num = parseFloat(s);
+          if (!isNaN(num)) s = num.toFixed(+decMode);
+        }
+        row[jNum] = s;
+      });
+    }
   });
 
   /* 4. fix emails */
