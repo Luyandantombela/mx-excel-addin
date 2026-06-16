@@ -305,9 +305,9 @@ Office.onReady(function() {
 function readSel() {
   Excel.run(function(ctx) {
     var r = ctx.workbook.getSelectedRange();
-    r.load(['address','values','rowCount','columnCount']);
+    r.load(['address','values','text','rowCount','columnCount']);
     return ctx.sync().then(function() {
-      sel = { address: r.address, values: r.values, rowCount: r.rowCount, columnCount: r.columnCount };
+      sel = { address: r.address, values: r.values, text: r.text, rowCount: r.rowCount, columnCount: r.columnCount };
       document.getElementById('sel-addr').textContent = r.address;
       document.getElementById('sel-count').textContent = r.rowCount + ' row(s) × ' + r.columnCount + ' col(s)';
     });
@@ -332,6 +332,19 @@ function handleFeature(f) {
 /* ════ STEP 1 ════ */
 function openClean() {
   if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
+  /* Merge .text over .values for any cell where the raw value is a number but
+     the displayed text looks like a date — this replaces serial numbers with
+     the string Excel already shows, exactly like the website sees it. */
+  if (sel.text) {
+    sel.values = sel.values.map(function(row, ri) {
+      return row.map(function(v, ci) {
+        var t = sel.text[ri] && sel.text[ri][ci] != null ? String(sel.text[ri][ci]) : '';
+        /* If raw value is a number and text looks like a date string → use text */
+        if (typeof v === 'number' && /\d/.test(t) && /[\/\-]/.test(t)) return t;
+        return v;
+      });
+    });
+  }
   var headers = sel.values[0];
   var sample  = sel.values[1] || [];
   colTypes = headers.map(function(h, i){ return detectType(h, sample[i]); });
@@ -436,7 +449,7 @@ function analyseData() {
       var dformats = {};
       var parseable = 0;
       colVals.forEach(function(v){
-        var f = detectDateFormat(v); /* pass raw value — handles numeric serials */
+        var f = detectDateFormat(String(v));
         dformats[f] = (dformats[f] || 0) + 1;
         if (f !== 'unknown') parseable++;
       });
@@ -514,7 +527,7 @@ function buildFmtRow(j, col) {
         '<option value="keep">Keep as is</option>' +
         '<option value="upper">UPPER CASE</option>' +
         '<option value="lower">lower case</option>' +
-        '<option value="title"' + (col.manual?' selected':'') + '>Title Case</option>' +
+        '<option value="title" selected>Title Case</option>' +
       '</select>';
   } else if (col.issueType === 'date') {
     controlsHtml =
@@ -586,40 +599,22 @@ function updateBadge(id, count) {
   var badge = hdr.querySelector('.badge');
   if (badge) badge.textContent = count;
 }
-/* ── Excel serial number to YYYY/MM/DD ── */
-function excelSerialToDate(serial) {
-  var n = Math.floor(serial);
-  if (n < 1 || n > 2958465) return null;
-  if (n > 59) n -= 1; /* Excel 1900 leap-year bug */
-  var d = new Date(Date.UTC(1899, 11, 31) + n * 86400000);
-  return d.getUTCFullYear() + '/' + String(d.getUTCMonth()+1).padStart(2,'0') + '/' + String(d.getUTCDate()).padStart(2,'0');
-}
-
-/* ── tryParseDate: any date value → canonical YYYY/MM/DD string ── */
+/* ── tryParseDate: string date → canonical YYYY/MM/DD ── */
+/* Mirrors the website logic exactly — works on text strings only */
 function tryParseDate(v) {
-  if (v === null || v === undefined || v === '') return v;
-  /* Office JS returns date cells as plain JS numbers (Excel serials) */
-  if (typeof v === 'number') {
-    var ser = excelSerialToDate(v);
-    return ser || String(v);
-  }
+  if (!v) return v;
   var s = String(v).trim();
   if (!s) return v;
-  /* 5-digit integer in plausible serial range (~2000-2099) */
-  if (/^\d{5}$/.test(s)) {
-    var n = parseInt(s, 10);
-    if (n >= 36526 && n <= 73050) { var ser2 = excelSerialToDate(n); if (ser2) return ser2; }
-  }
-  /* YYYY-MM-DD or YYYY/MM/DD */
+  /* YYYY-MM-DD or YYYY/MM/DD (1- or 2-digit month/day) */
   var iso = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
   if (iso) return iso[1]+'/'+String(iso[2]).padStart(2,'0')+'/'+String(iso[3]).padStart(2,'0');
-  /* D/M/YYYY or DD/MM/YYYY — treat as day-first (DD/MM convention) */
+  /* D/M/YYYY or DD/MM/YYYY */
   var dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
   if (dmy) return dmy[3]+'/'+String(dmy[2]).padStart(2,'0')+'/'+String(dmy[1]).padStart(2,'0');
   /* Compact DDMMYYYY */
-  var compact = s.match(/^(\d{2})(\d{2})(\d{4})$/);
-  if (compact) return compact[3]+'/'+compact[2]+'/'+compact[1];
-  /* Fallback to native Date (handles ISO timestamps, "Jan 5, 2026", etc.) */
+  var num = s.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (num) return num[3]+'/'+num[2]+'/'+num[1];
+  /* Fallback — native Date (handles 'Jan 5 2026', ISO timestamps, etc.) */
   var d = new Date(s);
   if (!isNaN(d.getTime())) return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
   return v;
@@ -627,13 +622,11 @@ function tryParseDate(v) {
 
 function detectDateFormat(v) {
   if (v === null || v === undefined || v === '') return 'unknown';
-  if (typeof v === 'number') return 'serial';
   var s = String(v).trim();
-  if (/^\d{5}$/.test(s)) { var n=parseInt(s,10); if(n>=36526&&n<=73050) return 'serial'; }
   if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(s)) return 'YYYY/MM/DD';
   if (/^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(s)) return parseInt(s.split(/[-\/]/)[0])>12 ? 'DD/MM/YYYY' : 'ambiguous';
-  var parsed = tryParseDate(v);
-  if (parsed !== v) return 'other';
+  var parsed = tryParseDate(s);
+  if (parsed !== s) return 'other';
   return 'unknown';
 }
 
@@ -869,32 +862,47 @@ function applyClean() {
         if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(v, targetFmt);
       });
     } else if (col.issueType === 'number') {
-      var decSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="decimals"]');
-      var txtSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="numtext"]');
+      var decSel  = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="decimals"]');
+      var txtSel  = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="numtext"]');
       var thouSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="thousands"]');
-      var decMode = decSel ? decSel.value : 'keep';
-      var txtMode = txtSel ? txtSel.value : 'keep';
+      var decMode  = decSel  ? decSel.value  : 'keep';
+      var txtMode  = txtSel  ? txtSel.value  : 'keep';
       var thouMode = thouSel ? thouSel.value : 'none';
+      /* skip entirely if nothing changes */
+      if (decMode === 'keep' && txtMode === 'keep' && thouMode === 'none') return;
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
-        var s = String(v);
+        var s = String(v).trim();
         if (txtMode === 'remove') s = s.replace(/[^0-9.\-]/g, '');
-        var num = parseFloat(s.replace(/[,\s]/g, ''));
-        if (!isNaN(num)) {
-          var fixed = decMode !== 'keep' ? num.toFixed(+decMode) : String(num);
-          var parts = fixed.split('.');
-          var intPart = parts[0], decPart = parts[1];
-          if (thouMode !== 'none') {
-            var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
-            var neg = intPart.charAt(0) === '-';
-            if (neg) intPart = intPart.slice(1);
-            intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
-            if (neg) intPart = '-' + intPart;
-          }
-          s = decPart !== undefined ? intPart + '.' + decPart : intPart;
+        /* strip any existing thousand separators before parsing */
+        var cleaned = s.replace(/[,\s]/g, '');
+        var num = parseFloat(cleaned);
+        if (isNaN(num)) return; /* unparseable — leave unchanged */
+        /* ── decimal places: toFixed on every value so 750 → 750.00 ── */
+        var formatted;
+        if (decMode === 'keep') {
+          var origDec = cleaned.indexOf('.') >= 0 ? cleaned.split('.')[1].length : 0;
+          formatted = num.toFixed(origDec);
+        } else {
+          formatted = num.toFixed(+decMode); /* ALL values get same dp */
         }
-        row[jNum] = s;
+        /* ── thousands separator ── */
+        if (thouMode !== 'none') {
+          var fp = formatted.split('.');
+          var intPart = fp[0], decPart = fp[1];
+          var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
+          var neg = intPart.charAt(0) === '-';
+          if (neg) intPart = intPart.slice(1);
+          intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
+          if (neg) intPart = '-' + intPart;
+          /* period-thousands → comma decimal to avoid ambiguity */
+          var decSepChar = thouMode === 'period' ? ',' : '.';
+          row[jNum] = decPart !== undefined ? intPart + decSepChar + decPart : intPart;
+        } else {
+          /* no thousands sep → store as actual number so Excel keeps it numeric */
+          row[jNum] = parseFloat(formatted);
+        }
       });
     }
   });
