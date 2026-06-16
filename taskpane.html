@@ -322,7 +322,7 @@ function show(id) {
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
 }
-function goHome()  { show('home'); }
+function goHome()  { show('home'); readSel(); }
 function goStep1() { show('step1'); }
 function handleFeature(f) {
   if (f === 'clean') openClean();
