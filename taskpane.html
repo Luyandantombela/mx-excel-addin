@@ -894,7 +894,9 @@ function applyClean() {
           var cl = String(v).trim(); if (txtMode === 'remove') cl = cl.replace(/[^0-9.\-]/g, ''); cl = cl.replace(/[,\s]/g, '');
           if (cl.indexOf('.') >= 0) maxDp = Math.max(maxDp, cl.split('.')[1].length);
         });
-        resolvedDp = maxDp;
+        /* if no source values have decimals but a thousands separator is chosen,
+           default to 2dp so 750 becomes 750.00 not 750 */
+        resolvedDp = (maxDp === 0 && thouMode !== 'none') ? 2 : maxDp;
       } else {
         resolvedDp = +decMode;
       }
