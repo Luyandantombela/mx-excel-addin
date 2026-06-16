@@ -113,15 +113,16 @@ html,body{
 .tdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .dot-text{background:var(--purple)}.dot-number{background:var(--green)}.dot-email{background:var(--amber)}.dot-date{background:var(--acc)}
 
-/* ══ ACCORDION — no inner scroll, height = content ══ */
+/* ══ ACCORDION — exact pattern from the original web app ══ */
 .acc{
   background:var(--s1);
   border:1px solid var(--b1);
   border-radius:8px;
   overflow:hidden;
-  /* do NOT set any height/max-height here */
+  transition:all .15s;
+  flex-shrink:0;             /* critical: never let flexbox compress this */
 }
-.acc-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;transition:background .1s}
+.acc-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;transition:background .12s}
 .acc-hdr:hover{background:var(--s2)}
 .acc-hdr-icon{font-size:16px;flex-shrink:0}
 .acc-hdr-label{flex:1;font-size:12.5px;font-weight:600}
@@ -132,9 +133,18 @@ html,body{
 .acc-chev{font-size:14px;color:var(--t4);transition:transform .2s;flex-shrink:0}
 .acc-chev.open{transform:rotate(180deg)}
 
-/* body hidden by default, shown by toggling .open — NO height limit */
-.acc-body{display:none;border-top:1px solid var(--b1)}
-.acc-body.open{display:block}
+/* collapsed: max-height 0 + hidden overflow. expanded: max-height none + visible.
+   This is the exact technique used in the original web app (max-height, not display). */
+.acc-body{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height .25s cubic-bezier(.4,0,.2,1);
+}
+.acc-body.open{
+  max-height:none;
+  overflow-y:visible;
+  border-top:1px solid var(--b1);
+}
 .acc-empty{padding:12px 14px;font-size:11.5px;color:var(--t4);font-style:italic}
 
 /* ── blank cells ── */
