@@ -530,15 +530,19 @@ function buildFmtRow(j, col) {
   var controlsHtml = '';
   if (col.issueType === 'casing') {
     controlsHtml =
-      '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="casing" style="font-size:11px;width:140px">' +
+      '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="casing" style="font-size:11px;width:140px"' +
+        ' onchange="issues.fmtCols[' + j + '].chosenCasing=this.value">' +
         '<option value="keep">Keep as is</option>' +
         '<option value="upper">UPPER CASE</option>' +
         '<option value="lower">lower case</option>' +
         '<option value="title" selected>Title Case</option>' +
       '</select>';
   } else if (col.issueType === 'date') {
+    /* Set default on the data object immediately */
+    issues.fmtCols[j].chosenFmt = issues.fmtCols[j].chosenFmt || 'YYYY/MM/DD';
     controlsHtml =
-      '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="date" style="font-size:11px;width:140px">' +
+      '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="date" style="font-size:11px;width:140px"' +
+        ' onchange="issues.fmtCols[' + j + '].chosenFmt=this.value">' +
         '<option value="YYYY/MM/DD" selected>YYYY/MM/DD</option>' +
         '<option value="YYYY-MM-DD">YYYY-MM-DD</option>' +
         '<option value="DD/MM/YYYY">DD/MM/YYYY</option>' +
@@ -549,7 +553,8 @@ function buildFmtRow(j, col) {
       '<div style="display:flex;flex-direction:column;gap:6px;width:160px">' +
         '<div style="display:flex;gap:6px;align-items:center">' +
           '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Decimals:</span>' +
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="decimals" style="font-size:11px;flex:1;padding:4px 6px">' +
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="decimals" style="font-size:11px;flex:1;padding:4px 6px"' +
+            ' onchange="issues.fmtCols[' + j + '].chosenDecimals=this.value">' +
             '<option value="keep" selected>Keep as is</option>' +
             '<option value="0">0</option><option value="1">1</option>' +
             '<option value="2">2</option><option value="3">3</option>' +
@@ -557,14 +562,16 @@ function buildFmtRow(j, col) {
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center">' +
           '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Text chars:</span>' +
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="numtext" style="font-size:11px;flex:1;padding:4px 6px">' +
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="numtext" style="font-size:11px;flex:1;padding:4px 6px"' +
+            ' onchange="issues.fmtCols[' + j + '].chosenNumtext=this.value">' +
             '<option value="keep" selected>Keep</option>' +
             '<option value="remove">Remove</option>' +
           '</select>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center">' +
           '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Thousands:</span>' +
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="thousands" style="font-size:11px;flex:1;padding:4px 6px">' +
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="thousands" style="font-size:11px;flex:1;padding:4px 6px"' +
+            ' onchange="issues.fmtCols[' + j + '].chosenThousands=this.value">' +
             '<option value="none" selected>None</option>' +
             '<option value="comma">1,000</option>' +
             '<option value="space">1 000</option>' +
@@ -854,27 +861,23 @@ function applyClean() {
     var jNum = +j;
 
     if (col.issueType === 'casing') {
-      var sel1 = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="casing"]');
-      var mode = sel1 ? sel1.value : 'keep';
+      var mode = col.chosenCasing || 'title';
       if (mode === 'keep') return;
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (typeof v === 'string' && v.trim() !== '') row[jNum] = applyCasing(v, mode);
       });
     } else if (col.issueType === 'date') {
-      var sel2 = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="date"]');
-      var targetFmt = sel2 ? sel2.value : 'YYYY/MM/DD';
+      /* Read from data object — set by onchange, not fragile querySelector */
+      var targetFmt = col.chosenFmt || 'YYYY/MM/DD';
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(v, targetFmt);
       });
     } else if (col.issueType === 'number') {
-      var decSel  = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="decimals"]');
-      var txtSel  = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="numtext"]');
-      var thouSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="thousands"]');
-      var decMode  = decSel  ? decSel.value  : 'keep';
-      var txtMode  = txtSel  ? txtSel.value  : 'keep';
-      var thouMode = thouSel ? thouSel.value : 'none';
+      var decMode  = col.chosenDecimals  || 'keep';
+      var txtMode  = col.chosenNumtext   || 'keep';
+      var thouMode = col.chosenThousands || 'none';
       /* skip entirely if nothing changes */
       if (decMode === 'keep' && txtMode === 'keep' && thouMode === 'none') return;
       dataRows.forEach(function(row) {
