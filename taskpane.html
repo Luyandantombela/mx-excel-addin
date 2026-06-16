@@ -890,47 +890,96 @@ function applyClean() {
       var thouMode = col.chosenThousands || 'none';
       /* skip entirely if nothing changes */
       if (decMode === 'keep' && txtMode === 'keep' && thouMode === 'none') return;
-      /* ── pre-scan: find max dp across column so all values get same decimal places ── */
+
+      /* ── helper: extract prefix, core numeric string, and suffix from a raw value ──
+         Examples:
+           "R1500"      → prefix="R", core="1500",   suffix=""
+           "$ 1, 200"   → prefix="$ ", core="1200",  suffix=""   (spaces/commas stripped from core)
+           "ME 100"     → prefix="ME ", core="100",  suffix=""
+           "1,200.50"   → prefix="",   core="1200.50", suffix=""
+           "-$1,200"    → prefix="-$", core="1200",  suffix=""
+      */
+      function splitNumericParts(s) {
+        s = String(s).trim();
+        /* Find the first digit (may be preceded by sign, currency symbols, letters, spaces) */
+        var firstDigit = s.search(/\d/);
+        if (firstDigit < 0) return null; /* no digit at all */
+        var prefix = s.slice(0, firstDigit);
+        /* Find the last digit */
+        var lastDigit = s.search(/\d(?=[^\d]*($))/);
+        /* Everything from firstDigit to lastDigit (inclusive) is the numeric body */
+        var numBody = s.slice(firstDigit, lastDigit + 1);
+        var suffix  = s.slice(lastDigit + 1);
+        /* Strip thousands separators (commas, spaces used as separators) from body
+           but keep the decimal dot and leading minus if present */
+        var sign = prefix.indexOf('-') >= 0 ? '-' : '';
+        /* Remove any non-digit non-dot chars from numBody to get a clean float string */
+        var cleanCore = numBody.replace(/[^0-9.]/g, '');
+        return { prefix: prefix, sign: sign, core: cleanCore, suffix: suffix };
+      }
+
+      /* ── pre-scan: find max dp across column so 'keep' keeps uniform decimals ── */
       var resolvedDp;
       if (decMode === 'keep') {
         var maxDp = 0;
         dataRows.forEach(function(row) {
           var v = row[jNum];
           if (v === '' || v === null || v === undefined) return;
-          var cl = String(v).trim().replace(/[^0-9.\-]/g, '');
-          if (cl.indexOf('.') >= 0) maxDp = Math.max(maxDp, cl.split('.')[1].length);
+          var parts = splitNumericParts(String(v));
+          if (!parts) return;
+          if (parts.core.indexOf('.') >= 0) maxDp = Math.max(maxDp, parts.core.split('.')[1].length);
         });
-        /* if no source values have decimals but a thousands separator is chosen,
-           default to 2dp so 750 becomes 750.00 not 750 */
-        resolvedDp = (maxDp === 0 && thouMode !== 'none') ? 2 : maxDp;
+        resolvedDp = maxDp;
       } else {
         resolvedDp = +decMode;
       }
+
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v).trim();
-        /* Always strip non-numeric chars + separators for reliable parsing */
-        var cleaned = s.replace(/[^0-9.\-]/g, '');
-        var num = parseFloat(cleaned);
+
+        var parts = splitNumericParts(s);
+        if (!parts) return; /* no digits at all — leave unchanged */
+
+        var num = parseFloat(parts.sign + parts.core);
         if (isNaN(num)) return; /* unparseable — leave unchanged */
-        /* ── decimal places: uniform dp across every value in the column ── */
-        var formatted = num.toFixed(resolvedDp);
+
+        /* ── decimal places ── */
+        var formatted = Math.abs(num).toFixed(resolvedDp);
+
         /* ── thousands separator ── */
+        var numStr;
         if (thouMode !== 'none') {
           var fp = formatted.split('.');
-          var intPart = fp[0], decPart = fp[1];
+          var intPart = fp[0];
+          var decPart = fp[1]; /* may be undefined when resolvedDp===0 */
           var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
-          var neg = intPart.charAt(0) === '-';
-          if (neg) intPart = intPart.slice(1);
           intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
-          if (neg) intPart = '-' + intPart;
-          /* period-thousands → comma decimal to avoid ambiguity */
+          /* period-thousands: use comma as decimal separator to avoid ambiguity */
           var decSepChar = thouMode === 'period' ? ',' : '.';
-          row[jNum] = decPart !== undefined ? intPart + decSepChar + decPart : intPart;
+          numStr = (decPart !== undefined) ? intPart + decSepChar + decPart : intPart;
         } else {
-          /* no thousands sep → store as actual number so Excel keeps it numeric */
-          row[jNum] = parseFloat(formatted);
+          /* no thousands sep — just the number digits */
+          numStr = formatted;
+        }
+
+        /* ── sign ── */
+        if (parts.sign === '-') numStr = '-' + numStr;
+
+        /* ── re-attach prefix / suffix based on txtMode ── */
+        if (txtMode === 'keep') {
+          /* Keep the original prefix and suffix, replace only the numeric body */
+          row[jNum] = parts.prefix.replace('-','') + numStr + parts.suffix;
+          /* Note: sign is already embedded in numStr; prefix may contain '-' so strip it there */
+        } else {
+          /* remove — output is the pure number string (or actual number when no thousands sep) */
+          if (thouMode === 'none') {
+            /* store as true number so Excel treats it numerically */
+            row[jNum] = parseFloat((parts.sign || '') + formatted);
+          } else {
+            row[jNum] = numStr;
+          }
         }
       });
     }
