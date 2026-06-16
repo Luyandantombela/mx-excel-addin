@@ -456,6 +456,17 @@ function analyseData() {
     }
   });
 
+  /* whitespace — columns with leading/trailing spaces in any cell */
+  var wsCols = {};
+  headers.forEach(function(h, j) {
+    var count = 0;
+    dataRows.forEach(function(row) {
+      var v = row[j];
+      if (typeof v === 'string' && v !== '' && v !== v.trim()) count++;
+    });
+    if (count) wsCols[j] = { header: h || ('Col '+(j+1)), count: count };
+  });
+
   /* bad emails */
   var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   var badEmails = [];
@@ -469,10 +480,11 @@ function analyseData() {
     });
   });
 
-  issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, badEmails: badEmails };
+  issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, wsCols: wsCols, badEmails: badEmails };
   fmtColKeys = Object.keys(fmtCols);
+  issues.wsColKeys = Object.keys(wsCols);
 
-  var total = Object.keys(blankCols).length + dupes.length + fmtColKeys.length + badEmails.length;
+  var total = Object.keys(blankCols).length + dupes.length + fmtColKeys.length + issues.wsColKeys.length + badEmails.length;
   document.getElementById('issues-sub').textContent = 'Step 2 of 2 — ' + total + ' issue' + (total!==1?'s':'') + ' found';
 }
 
@@ -501,7 +513,90 @@ function applyCasing(text, pattern) {
   return text;
 }
 
-/* ── date format detection (matches original site logic) ── */
+/* ── build a single formatting row (used for both auto-detected and manually-added columns) ── */
+function buildFmtRow(j, col) {
+  var row = document.createElement('div');
+  row.className = 'fmt-col-row';
+
+  var controlsHtml = '';
+  if (col.issueType === 'casing') {
+    controlsHtml =
+      '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="casing" style="font-size:11px;width:140px">' +
+        '<option value="keep">Keep as is</option>' +
+        '<option value="upper">UPPER CASE</option>' +
+        '<option value="lower">lower case</option>' +
+        '<option value="title"' + (col.manual?' selected':'') + '>Title Case</option>' +
+      '</select>';
+  } else if (col.issueType === 'date') {
+    controlsHtml =
+      '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="date" style="font-size:11px;width:140px">' +
+        '<option value="YYYY/MM/DD" selected>YYYY/MM/DD</option>' +
+        '<option value="YYYY-MM-DD">YYYY-MM-DD</option>' +
+        '<option value="DD/MM/YYYY">DD/MM/YYYY</option>' +
+        '<option value="MM/DD/YYYY">MM/DD/YYYY</option>' +
+      '</select>';
+  } else if (col.issueType === 'number') {
+    controlsHtml =
+      '<div style="display:flex;flex-direction:column;gap:6px;width:160px">' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Decimals:</span>' +
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="decimals" style="font-size:11px;flex:1;padding:4px 6px">' +
+            '<option value="keep">Keep as is</option>' +
+            '<option value="0">0</option><option value="1">1</option>' +
+            '<option value="2"' + (col.manual?'':' selected') + '>2</option><option value="3">3</option>' +
+          '</select>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Text chars:</span>' +
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="numtext" style="font-size:11px;flex:1;padding:4px 6px">' +
+            '<option value="keep">Keep</option>' +
+            '<option value="remove"' + (col.manual?'':' selected') + '>Remove</option>' +
+          '</select>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Thousands:</span>' +
+          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="thousands" style="font-size:11px;flex:1;padding:4px 6px">' +
+            '<option value="none" selected>None</option>' +
+            '<option value="comma">1,000</option>' +
+            '<option value="space">1 000</option>' +
+            '<option value="period">1.000</option>' +
+          '</select>' +
+        '</div>' +
+      '</div>';
+  }
+
+  row.innerHTML =
+    '<div class="tdot dot-' + col.type + '"></div>' +
+    '<div style="flex:1;min-width:0">' +
+      '<div class="fmt-col-name">' + col.header + '</div>' +
+      '<div class="fmt-col-type">' + col.type + ' · ' + (col.manual ? 'manually added' : (col.issueCount + ' value' + (col.issueCount!==1?'s':'') + ' affected')) + '</div>' +
+    '</div>' +
+    controlsHtml;
+  return row;
+}
+
+/* ── refresh the "add column" dropdown to exclude already-listed columns ── */
+function refreshFmtAddSelect() {
+  var selEl = document.getElementById('fmt-add-select');
+  if (!selEl) return;
+  var headers = sel.values[0];
+  var already = {};
+  Object.keys(issues.fmtCols).forEach(function(k){ already[k] = true; });
+  var opts = '<option value="">Select a column to add…</option>';
+  headers.forEach(function(h, i) {
+    if (already[i]) return;
+    opts += '<option value="' + i + '">' + (h || ('Col '+(i+1))) + '</option>';
+  });
+  selEl.innerHTML = opts;
+}
+
+/* ── update an accordion header badge count live ── */
+function updateBadge(id, count) {
+  var hdr = document.getElementById('hdr-' + id);
+  if (!hdr) return;
+  var badge = hdr.querySelector('.badge');
+  if (badge) badge.textContent = count;
+}
 function detectDateFormat(s) {
   if (!s) return 'unknown';
   s = s.trim();
@@ -595,61 +690,70 @@ function renderIssues() {
   if (!fmtColKeys.length) {
     fmtInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:12px 14px">No formatting inconsistencies found</div>';
   } else {
-    fmtColKeys.forEach(function(j) {
-      var col = fc[j];
-      var row = document.createElement('div');
-      row.className = 'fmt-col-row';
-
-      var controlsHtml = '';
-      if (col.issueType === 'casing') {
-        controlsHtml =
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="casing" style="font-size:11px;width:140px">' +
-            '<option value="keep">Keep as is</option>' +
-            '<option value="upper">UPPER CASE</option>' +
-            '<option value="lower">lower case</option>' +
-            '<option value="title" selected>Title Case</option>' +
-          '</select>';
-      } else if (col.issueType === 'date') {
-        controlsHtml =
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="date" style="font-size:11px;width:140px">' +
-            '<option value="YYYY/MM/DD" selected>YYYY/MM/DD</option>' +
-            '<option value="YYYY-MM-DD">YYYY-MM-DD</option>' +
-            '<option value="DD/MM/YYYY">DD/MM/YYYY</option>' +
-            '<option value="MM/DD/YYYY">MM/DD/YYYY</option>' +
-          '</select>';
-      } else if (col.issueType === 'number') {
-        controlsHtml =
-          '<div style="display:flex;flex-direction:column;gap:6px;width:150px">' +
-            '<div style="display:flex;gap:6px;align-items:center">' +
-              '<span style="font-size:10px;color:var(--t3);flex-shrink:0">Decimals:</span>' +
-              '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="decimals" style="font-size:11px;flex:1;padding:4px 6px">' +
-                '<option value="keep">Keep as is</option>' +
-                '<option value="0">0</option><option value="1">1</option>' +
-                '<option value="2" selected>2</option><option value="3">3</option>' +
-              '</select>' +
-            '</div>' +
-            '<div style="display:flex;gap:6px;align-items:center">' +
-              '<span style="font-size:10px;color:var(--t3);flex-shrink:0">Text chars:</span>' +
-              '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="numtext" style="font-size:11px;flex:1;padding:4px 6px">' +
-                '<option value="keep">Keep</option>' +
-                '<option value="remove" selected>Remove</option>' +
-              '</select>' +
-            '</div>' +
-          '</div>';
-      }
-
-      row.innerHTML =
-        '<div class="tdot dot-' + col.type + '"></div>' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="fmt-col-name">' + col.header + '</div>' +
-          '<div class="fmt-col-type">' + col.type + ' · ' + col.issueCount + ' value' + (col.issueCount!==1?'s':'') + ' affected</div>' +
-        '</div>' +
-        controlsHtml;
-      fmtInner.appendChild(row);
-    });
+    fmtColKeys.forEach(function(j) { fmtInner.appendChild(buildFmtRow(j, fc[j])); });
   }
+
+  /* manual add-column control — always shown, in case the scan missed a column */
+  var fmtAddWrap = document.createElement('div');
+  fmtAddWrap.style.padding = '10px 14px';
+  fmtAddWrap.style.borderTop = fmtColKeys.length ? '1px dashed var(--b1)' : 'none';
+  fmtAddWrap.innerHTML =
+    '<div style="display:flex;gap:8px;align-items:center">' +
+      '<select class="p-sel" id="fmt-add-select" style="font-size:11px;flex:1"></select>' +
+      '<button class="add-col-btn" id="fmt-add-btn" style="white-space:nowrap;border:1px solid var(--b1);border-radius:6px;padding:6px 10px"><i class="ti ti-plus"></i> Add column</button>' +
+    '</div>';
+  fmtInner.appendChild(fmtAddWrap);
   fmtBody.appendChild(fmtInner);
   body.appendChild(fmtAcc);
+
+  /* populate the add-column dropdown with columns not already listed */
+  refreshFmtAddSelect();
+  document.getElementById('fmt-add-btn').addEventListener('click', function() {
+    var selEl = document.getElementById('fmt-add-select');
+    var j = selEl.value;
+    if (j === '' || issues.fmtCols[j]) return;
+    var headers = sel.values[0];
+    var type = colTypes[j];
+    var col = { header: headers[j] || ('Col '+(+j+1)), type: type, issueType: type==='date'?'date':(type==='number'?'number':'casing'), issueCount: 0, manual: true };
+    issues.fmtCols[j] = col;
+    fmtColKeys.push(j);
+    var newRow = buildFmtRow(j, col);
+    fmtInner.insertBefore(newRow, fmtAddWrap);
+    fmtAddWrap.style.borderTop = '1px dashed var(--b1)';
+    refreshFmtAddSelect();
+    updateBadge('fmt', fmtColKeys.length);
+  });
+
+  /* ── Whitespace — columns with leading/trailing spaces, checkbox per column ── */
+  var wsAcc = makeAcc('ws', 'ti-letter-spacing', 'var(--purple)', 'Whitespace Found', issues.wsColKeys.length, 'b-blue');
+  var wsBody = wsAcc.querySelector('.acc-body');
+  var wsInner = document.createElement('div');
+  wsInner.style.padding = '4px 0';
+  if (!issues.wsColKeys.length) {
+    wsInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:12px 14px">No whitespace issues found</div>';
+  } else {
+    var wsSelAll = document.createElement('label');
+    wsSelAll.className = 'sel-all-row';
+    wsSelAll.innerHTML = '<input type="checkbox" checked> Select all (' + issues.wsColKeys.length + ')';
+    wsSelAll.querySelector('input').addEventListener('change', function(e) {
+      wsInner.querySelectorAll('.ws-cb').forEach(function(cb){ cb.checked = e.target.checked; });
+    });
+    wsInner.appendChild(wsSelAll);
+    issues.wsColKeys.forEach(function(j) {
+      var col = issues.wsCols[j];
+      var row = document.createElement('div');
+      row.className = 'fmt-col-row';
+      row.innerHTML =
+        '<input type="checkbox" class="ws-cb" data-col="' + j + '" checked style="accent-color:var(--acc);width:14px;height:14px;flex-shrink:0;cursor:pointer">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="fmt-col-name">' + col.header + '</div>' +
+          '<div class="fmt-col-type">' + col.count + ' cell' + (col.count!==1?'s':'') + ' with extra spaces</div>' +
+        '</div>';
+      wsInner.appendChild(row);
+    });
+  }
+  wsBody.appendChild(wsInner);
+  body.appendChild(wsAcc);
 
   /* ── Incorrect emails — exact pattern: replace-all row + original->fixed error-items ── */
   var emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect Emails', be.length, 'b-amber');
@@ -772,20 +876,41 @@ function applyClean() {
     } else if (col.issueType === 'number') {
       var decSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="decimals"]');
       var txtSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="numtext"]');
+      var thouSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="thousands"]');
       var decMode = decSel ? decSel.value : 'keep';
       var txtMode = txtSel ? txtSel.value : 'keep';
+      var thouMode = thouSel ? thouSel.value : 'none';
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v);
         if (txtMode === 'remove') s = s.replace(/[^0-9.\-]/g, '');
-        if (decMode !== 'keep') {
-          var num = parseFloat(s);
-          if (!isNaN(num)) s = num.toFixed(+decMode);
+        var num = parseFloat(s.replace(/[,\s]/g, ''));
+        if (!isNaN(num)) {
+          var fixed = decMode !== 'keep' ? num.toFixed(+decMode) : String(num);
+          var parts = fixed.split('.');
+          var intPart = parts[0], decPart = parts[1];
+          if (thouMode !== 'none') {
+            var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
+            var neg = intPart.charAt(0) === '-';
+            if (neg) intPart = intPart.slice(1);
+            intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
+            if (neg) intPart = '-' + intPart;
+          }
+          s = decPart !== undefined ? intPart + '.' + decPart : intPart;
         }
         row[jNum] = s;
       });
     }
+  });
+
+  /* 3b. whitespace — trim checked columns */
+  document.querySelectorAll('.ws-cb:checked').forEach(function(cb) {
+    var j = +cb.dataset.col;
+    dataRows.forEach(function(row) {
+      var v = row[j];
+      if (typeof v === 'string') row[j] = v.trim();
+    });
   });
 
   /* 4. fix emails */
