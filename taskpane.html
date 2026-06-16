@@ -597,28 +597,43 @@ function updateBadge(id, count) {
   var badge = hdr.querySelector('.badge');
   if (badge) badge.textContent = count;
 }
+/* ── robust date parser (matches original site's tryParseDate exactly) ── */
+function tryParseDate(v) {
+  if (!v) return v;
+  v = String(v).trim();
+  var iso = v.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if (iso) return iso[1] + '/' + String(iso[2]).padStart(2,'0') + '/' + String(iso[3]).padStart(2,'0');
+  var dmy = v.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (dmy) return dmy[3] + '/' + String(dmy[2]).padStart(2,'0') + '/' + String(dmy[1]).padStart(2,'0');
+  var num = v.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (num) return num[3] + '/' + num[2] + '/' + num[1];
+  var d = new Date(v);
+  if (!isNaN(d.getTime())) return d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+  return v;
+}
+
 function detectDateFormat(s) {
   if (!s) return 'unknown';
-  s = s.trim();
-  if (/^\d{4}[-\/]\d{2}[-\/]\d{2}$/.test(s)) return 'YYYY/MM/DD';
-  if (/^\d{2}[-\/]\d{2}[-\/]\d{4}$/.test(s)) {
+  s = String(s).trim();
+  if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(s)) return 'YYYY/MM/DD';
+  if (/^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(s)) {
     var parts = s.split(/[-\/]/);
     if (parseInt(parts[0]) > 12) return 'DD/MM/YYYY';
     return 'MM/DD/YYYY';
   }
+  if (/^\d{8}$/.test(s)) return 'compact';
+  if (!isNaN(new Date(s).getTime())) return 'parseable';
   return 'unknown';
 }
 
+/* normalize ANY date-like string to a target display format, using tryParseDate first
+   to get a canonical YYYY/MM/DD, then reformatting — matches original site exactly */
 function normalizeDate(dateStr, targetFormat) {
   if (!dateStr) return dateStr;
-  var s = String(dateStr).trim(), year, month, day;
-  var iso = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
-  if (iso) { year = iso[1]; month = iso[2]; day = iso[3]; }
-  else {
-    var dmy = s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);
-    if (dmy) { day = dmy[1]; month = dmy[2]; year = dmy[3]; }
-    else return dateStr;
-  }
+  var parsed = tryParseDate(String(dateStr));
+  var m = parsed.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!m) return dateStr; // could not parse at all — leave untouched
+  var year = m[1], month = m[2], day = m[3];
   if (targetFormat === 'YYYY/MM/DD') return year+'/'+month+'/'+day;
   if (targetFormat === 'YYYY-MM-DD') return year+'-'+month+'-'+day;
   if (targetFormat === 'DD/MM/YYYY') return day+'/'+month+'/'+year;
