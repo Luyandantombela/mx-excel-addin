@@ -16,41 +16,75 @@
   --red:#f26c6c;--red-bg:#2a0d0d;--red-b:#5c1c1c;
   --amber:#f5a623;--amber-bg:#2a1c00;--amber-b:#4a3000;
   --green:#52c97a;--green-bg:#0a2416;--green-b:#1a4a2e;
-  --purple:#b06ef7;--purple-bg:#1a0b2e;--purple-b:#3d1566;
-  --cyan:#22d3ee;--cyan-bg:#0a1e24;
+  --purple:#b06ef7;
   --t1:#f0ede8;--t2:#c8c4bc;--t3:#7a7f90;--t4:#4a4f60;
   --mono:'IBM Plex Mono',monospace;
 }
-html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-serif;color:var(--t1);overflow:hidden}
-#app{height:100vh;overflow:hidden;display:flex;flex-direction:column}
 
-/* ═══ SCREENS ═══ */
-.screen{display:none;flex-direction:column;height:100%;overflow:hidden}
-.screen.active{display:flex}
+html,body{
+  height:100%;
+  background:var(--bg);
+  font-family:'IBM Plex Sans',sans-serif;
+  color:var(--t1);
+  overflow:hidden;
+}
 
-/* ═══ SHARED HEADER ═══ */
-.panel-header{display:flex;align-items:center;gap:10px;padding:13px 14px 11px;border-bottom:1px solid var(--b1);flex-shrink:0}
-.back-btn{background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;display:flex;align-items:center;padding:2px;border-radius:4px}
+/* each screen fills the viewport and manages its own scroll */
+.screen{
+  display:none;
+  flex-direction:column;
+  height:100vh;
+  overflow:hidden;
+}
+.screen.active{ display:flex; }
+
+/* sticky top header inside a screen */
+.panel-header{
+  flex-shrink:0;
+  display:flex;align-items:center;gap:10px;
+  padding:13px 14px 11px;
+  border-bottom:1px solid var(--b1);
+  background:var(--bg);
+}
+.back-btn{background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;display:flex;align-items:center;padding:2px 4px;border-radius:4px}
 .back-btn:hover{color:var(--t1);background:var(--s2)}
 .panel-title{font-size:14px;font-weight:600}
 .panel-sub{font-size:10.5px;color:var(--t3);margin-top:2px}
 
-/* ═══ SCROLLABLE BODY ═══ */
-.panel-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+/* THE scrollable area — this is the ONLY thing that scrolls */
+.panel-body{
+  flex:1;
+  overflow-y:auto;
+  padding:12px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  /* allow it to grow beyond viewport and scroll */
+  min-height:0;
+}
 .panel-body::-webkit-scrollbar{width:4px}
 .panel-body::-webkit-scrollbar-track{background:transparent}
 .panel-body::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
 
-/* ═══ FOOTER ═══ */
-.panel-footer{padding:11px 14px;border-top:1px solid var(--b1);flex-shrink:0;display:flex;flex-direction:column;gap:6px}
-.primary-btn{width:100%;padding:11px;font-size:13px;font-weight:700;background:var(--acc);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:background .15s}
+/* sticky bottom footer */
+.panel-footer{
+  flex-shrink:0;
+  padding:11px 14px;
+  border-top:1px solid var(--b1);
+  background:var(--bg);
+  display:flex;flex-direction:column;gap:6px;
+}
+.primary-btn{
+  width:100%;padding:11px;font-size:13px;font-weight:700;
+  background:var(--acc);color:#fff;border:none;border-radius:8px;
+  cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:background .15s;
+}
 .primary-btn:hover{background:var(--acc2)}
 .primary-btn:disabled{background:var(--b1);color:var(--t4);cursor:not-allowed}
 .btn-note{font-size:10px;color:var(--t4);text-align:center}
 
-/* ═══ HOME ═══ */
-#home .panel-body{padding:14px}
-.home-header{margin-bottom:4px}
+/* ══ HOME ══ */
+#home .panel-body{ padding:14px; gap:12px; }
 .home-header h1{font-size:15px;font-weight:600}
 .home-header p{font-size:11.5px;color:var(--t3);margin-top:3px}
 
@@ -69,21 +103,24 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-seri
 .ft-title{font-size:12.5px;font-weight:600}
 .ft-desc{font-size:10.5px;color:var(--t3)}
 
-/* ═══ STEP 1 — COLUMN TYPES ═══ */
-.step-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t4);margin-bottom:2px}
+/* ══ STEP 1 — COLUMN TYPES ══ */
+.step-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t4)}
 .col-type-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s1);border:1px solid var(--b1);border-radius:8px}
-.col-name{flex:1;font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.col-name{font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .col-sample{font-size:10px;color:var(--t4);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .type-select{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 8px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;outline:none;flex-shrink:0}
 .type-select:focus{border-color:var(--acc)}
-
-/* type dot */
 .tdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .dot-text{background:var(--purple)}.dot-number{background:var(--green)}.dot-email{background:var(--amber)}.dot-date{background:var(--acc)}
 
-/* ═══ STEP 2 — ISSUES ═══ */
-/* accordion */
-.acc{background:var(--s1);border:1px solid var(--b1);border-radius:8px;overflow:hidden}
+/* ══ ACCORDION — no inner scroll, height = content ══ */
+.acc{
+  background:var(--s1);
+  border:1px solid var(--b1);
+  border-radius:8px;
+  overflow:hidden;
+  /* do NOT set any height/max-height here */
+}
 .acc-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;transition:background .1s}
 .acc-hdr:hover{background:var(--s2)}
 .acc-hdr-icon{font-size:16px;flex-shrink:0}
@@ -92,61 +129,65 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-seri
 .b-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b)}
 .b-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
 .b-blue{background:var(--acc-bg);color:var(--acc);border:1px solid #1e3a6e}
-.b-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b)}
 .acc-chev{font-size:14px;color:var(--t4);transition:transform .2s;flex-shrink:0}
 .acc-chev.open{transform:rotate(180deg)}
+
+/* body hidden by default, shown by toggling .open — NO height limit */
 .acc-body{display:none;border-top:1px solid var(--b1)}
 .acc-body.open{display:block}
 .acc-empty{padding:12px 14px;font-size:11.5px;color:var(--t4);font-style:italic}
 
-/* ── blank cells section ── */
-.blank-col-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--b1)}
+/* ── blank cells ── */
+.blank-col-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--b1)}
 .blank-col-row:last-child{border-bottom:none}
-.blank-col-name{flex:1;font-size:12px;font-weight:600;color:var(--t1)}
+.blank-col-name{font-size:12px;font-weight:600;color:var(--t1)}
 .blank-col-meta{font-size:10px;color:var(--t3);margin-top:1px}
-.blank-input{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 9px;font-family:var(--mono);width:130px;flex-shrink:0;outline:none}
+.blank-input{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 9px;font-family:var(--mono);width:120px;flex-shrink:0;outline:none}
 .blank-input:focus{border-color:var(--acc)}
 
-/* ── duplicate rows section ── */
-.sel-all-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:11px;color:var(--t3);border-bottom:1px solid var(--b1)}
+/* ── duplicates ── */
+.sel-all-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:11px;color:var(--t3);border-bottom:1px solid var(--b1);cursor:pointer}
 .sel-all-row input{accent-color:var(--acc);cursor:pointer;width:14px;height:14px}
 .dupe-row{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--b1)}
 .dupe-row:last-child{border-bottom:none}
 .dupe-row input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px;flex-shrink:0;cursor:pointer}
-.dupe-rnum{font-size:10px;color:var(--t4);font-family:var(--mono);flex-shrink:0;min-width:44px}
-.dupe-preview{font-size:11.5px;color:var(--t2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
+.dupe-rnum{font-size:10px;color:var(--t4);font-family:var(--mono);flex-shrink:0;min-width:48px}
+.dupe-preview{font-size:11px;color:var(--t2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
 .dupe-tag{font-size:9.5px;padding:2px 7px;border-radius:4px;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
 
-/* ── formatting section ── */
-.fmt-col-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--b1)}
+/* ── formatting ── */
+.fmt-col-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--b1)}
 .fmt-col-row:last-child{border-bottom:none}
-.fmt-col-name{flex:1;font-size:12px;font-weight:600;color:var(--t1)}
+.fmt-col-name{font-size:12px;font-weight:600;color:var(--t1)}
 .fmt-col-type{font-size:10px;color:var(--t3);margin-top:1px}
 .fmt-select{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 8px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;outline:none;flex-shrink:0}
 .fmt-select:focus{border-color:var(--acc)}
-.add-col-row{padding:10px 14px;border-top:1px solid var(--b1)}
+.add-col-row{padding:10px 14px}
 .add-col-btn{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--acc);background:none;border:none;cursor:pointer;padding:4px 0;font-family:'IBM Plex Sans',sans-serif}
 .add-col-btn:hover{color:var(--t1)}
 
-/* ── email section ── */
+/* ── emails ── */
 .email-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--b1)}
 .email-row:last-child{border-bottom:none}
-.email-rnum{font-size:10px;color:var(--t4);font-family:var(--mono);flex-shrink:0;min-width:44px}
-.email-val{font-size:11.5px;color:var(--red);font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.email-input{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 9px;font-family:var(--mono);width:140px;flex-shrink:0;outline:none}
+.email-rnum{font-size:10px;color:var(--t4);font-family:var(--mono);flex-shrink:0;min-width:48px}
+.email-val{font-size:11px;color:var(--red);font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-input{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 9px;font-family:var(--mono);width:130px;flex-shrink:0;outline:none}
 .email-input:focus{border-color:var(--acc)}
 
+/* spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .8s linear infinite;display:inline-block}
+
 /* toast */
-#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:8px 18px;border-radius:8px;font-size:12px;font-weight:600;display:none;z-index:999;white-space:nowrap;background:var(--green-bg);border:1px solid var(--green);color:var(--green)}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:8px 18px;border-radius:8px;font-size:12px;font-weight:600;display:none;z-index:9999;white-space:nowrap;background:var(--green-bg);border:1px solid var(--green);color:var(--green)}
 #toast.err{background:var(--red-bg);border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
-<div id="app">
 
-<!-- ══════════════ HOME ══════════════ -->
+<!-- ══════════ HOME ══════════ -->
 <div class="screen active" id="home">
-  <div class="panel-body" style="padding:14px;gap:12px">
+  <div class="panel-body" id="home-body">
     <div class="home-header">
       <h1>MX Sheet Toolkit</h1>
       <p>Select cells in your sheet, then pick a feature.</p>
@@ -169,7 +210,7 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-seri
   </div>
 </div>
 
-<!-- ══════════════ STEP 1 — COLUMN TYPES ══════════════ -->
+<!-- ══════════ STEP 1 — COLUMN TYPES ══════════ -->
 <div class="screen" id="step1">
   <div class="panel-header">
     <button class="back-btn" onclick="goHome()"><i class="ti ti-arrow-left"></i></button>
@@ -184,7 +225,7 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-seri
   </div>
 </div>
 
-<!-- ══════════════ STEP 2 — ISSUES ══════════════ -->
+<!-- ══════════ STEP 2 — ISSUES ══════════ -->
 <div class="screen" id="step2">
   <div class="panel-header">
     <button class="back-btn" onclick="goStep1()"><i class="ti ti-arrow-left"></i></button>
@@ -195,115 +236,114 @@ html,body{height:100%;background:var(--bg);font-family:'IBM Plex Sans',sans-seri
   </div>
   <div class="panel-body" id="issues-body"></div>
   <div class="panel-footer">
-    <button class="primary-btn" id="apply-btn" onclick="applyClean()">Apply &amp; create cleaned sheet</button>
+    <button class="primary-btn" id="apply-btn" disabled onclick="applyClean()">Apply &amp; create cleaned sheet</button>
     <div class="btn-note">A new sheet is created with fixes applied. Your original stays untouched.</div>
   </div>
 </div>
 
-</div>
 <div id="toast"></div>
 
 <script>
 /* ════ STATE ════ */
-let sel = null;          // { address, values, rowCount, columnCount }
-let colTypes = [];       // ['text'|'number'|'email'|'date', ...]
-let issues = null;       // { blanks, dupes, fmt, emails }
+var sel       = null;
+var colTypes  = [];
+var issues    = null;
+var fmtColKeys = [];   // kept in module scope so add-col can update
 
 /* ════ OFFICE READY ════ */
-Office.onReady(() => {
+Office.onReady(function() {
   document.getElementById('refresh-btn').addEventListener('click', readSel);
-  document.querySelectorAll('.feature-btn').forEach(b => b.addEventListener('click', () => handleFeature(b.dataset.feature)));
+  document.querySelectorAll('.feature-btn').forEach(function(b) {
+    b.addEventListener('click', function(){ handleFeature(b.dataset.feature); });
+  });
   readSel();
 });
 
 /* ════ SELECTION ════ */
-async function readSel() {
-  try {
-    await Excel.run(async ctx => {
-      const r = ctx.workbook.getSelectedRange();
-      r.load(['address','values','rowCount','columnCount']);
-      await ctx.sync();
+function readSel() {
+  Excel.run(function(ctx) {
+    var r = ctx.workbook.getSelectedRange();
+    r.load(['address','values','rowCount','columnCount']);
+    return ctx.sync().then(function() {
       sel = { address: r.address, values: r.values, rowCount: r.rowCount, columnCount: r.columnCount };
       document.getElementById('sel-addr').textContent = r.address;
-      document.getElementById('sel-count').textContent = `${r.rowCount} row(s) × ${r.columnCount} col(s)`;
+      document.getElementById('sel-count').textContent = r.rowCount + ' row(s) × ' + r.columnCount + ' col(s)';
     });
-  } catch(e) {
+  }).catch(function(e) {
     document.getElementById('sel-addr').textContent = 'Error';
     document.getElementById('sel-count').textContent = e.message;
-  }
+  });
 }
 
 /* ════ ROUTING ════ */
 function show(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
 }
-function goHome() { show('home'); }
+function goHome()  { show('home'); }
+function goStep1() { show('step1'); }
 function handleFeature(f) {
   if (f === 'clean') openClean();
-  else showToast(`"${f}" — coming soon!`, false);
+  else showToast('"' + f + '" — coming soon!', false);
 }
 
 /* ════ STEP 1 ════ */
 function openClean() {
-  if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 row.', true); return; }
-  const headers = sel.values[0];
-  const sample  = sel.values[1] || [];
+  if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
+  var headers = sel.values[0];
+  var sample  = sel.values[1] || [];
+  colTypes = headers.map(function(h, i){ return detectType(h, sample[i]); });
 
-  // auto-detect type
-  colTypes = headers.map((h, i) => detectType(h, sample[i]));
+  var list = document.getElementById('col-type-list');
+  list.innerHTML = '<div class="step-label" style="margin-bottom:4px">Confirm column types</div>';
 
-  const list = document.getElementById('col-type-list');
-  list.innerHTML = '<div class="step-label">Column types</div>';
-
-  headers.forEach((h, i) => {
-    const row = document.createElement('div');
+  headers.forEach(function(h, i) {
+    var row = document.createElement('div');
     row.className = 'col-type-row';
-    const dotClass = `dot-${colTypes[i]}`;
-    row.innerHTML = `
-      <div class="tdot ${dotClass}" id="tdot-${i}"></div>
-      <div style="flex:1;min-width:0">
-        <div class="col-name">${h || `Col ${i+1}`}</div>
-        <div class="col-sample">${sample[i] !== undefined && sample[i] !== '' ? sample[i] : '(empty)'}</div>
-      </div>
-      <select class="type-select" data-col="${i}" onchange="updateType(${i},this.value)">
-        <option value="text"   ${colTypes[i]==='text'   ?'selected':''}>Text</option>
-        <option value="number" ${colTypes[i]==='number' ?'selected':''}>Number</option>
-        <option value="email"  ${colTypes[i]==='email'  ?'selected':''}>Email</option>
-        <option value="date"   ${colTypes[i]==='date'   ?'selected':''}>Date</option>
-      </select>`;
+    var sampleText = (sample[i] !== undefined && sample[i] !== '') ? sample[i] : '(empty)';
+    row.innerHTML =
+      '<div class="tdot dot-' + colTypes[i] + '" id="tdot-' + i + '"></div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div class="col-name">' + (h || 'Col ' + (i+1)) + '</div>' +
+        '<div class="col-sample">' + sampleText + '</div>' +
+      '</div>' +
+      '<select class="type-select" data-col="' + i + '">' +
+        '<option value="text"'   + (colTypes[i]==='text'  ?' selected':'') + '>Text</option>' +
+        '<option value="number"' + (colTypes[i]==='number'?' selected':'') + '>Number</option>' +
+        '<option value="email"'  + (colTypes[i]==='email' ?' selected':'') + '>Email</option>' +
+        '<option value="date"'   + (colTypes[i]==='date'  ?' selected':'') + '>Date</option>' +
+      '</select>';
+    row.querySelector('select').addEventListener('change', function(e){ updateType(i, e.target.value); });
     list.appendChild(row);
   });
 
   show('step1');
 }
 
-function detectType(header, sampleVal) {
-  const h = (header || '').toString().toLowerCase();
-  if (h.includes('email') || h.includes('mail')) return 'email';
-  if (h.includes('date') || h.includes('time') || h.includes('dob') || h.includes('birth')) return 'date';
-  if (h.includes('phone') || h.includes('age') || h.includes('qty') || h.includes('amount') || h.includes('price') || h.includes('number') || h.includes('num') || h.includes('id')) return 'number';
-  if (typeof sampleVal === 'number') return 'number';
-  if (typeof sampleVal === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sampleVal.trim())) return 'email';
+function detectType(h, v) {
+  var hl = (h || '').toString().toLowerCase();
+  if (hl.includes('email') || hl.includes('mail')) return 'email';
+  if (hl.includes('date') || hl.includes('dob') || hl.includes('birth') || hl.includes('time')) return 'date';
+  if (hl.includes('id') || hl.includes('amount') || hl.includes('price') || hl.includes('qty') || hl.includes('num') || hl.includes('age') || hl.includes('phone')) return 'number';
+  if (typeof v === 'number') return 'number';
+  if (typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) return 'email';
   return 'text';
 }
 
 function updateType(colIdx, val) {
   colTypes[colIdx] = val;
-  const dot = document.getElementById(`tdot-${colIdx}`);
-  dot.className = `tdot dot-${val}`;
+  var dot = document.getElementById('tdot-' + colIdx);
+  if (dot) dot.className = 'tdot dot-' + val;
 }
 
 /* ════ STEP 2 ════ */
-function goStep1() { show('step1'); }
-
 function goStep2() {
   show('step2');
-  const body = document.getElementById('issues-body');
-  body.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:14px;font-size:12px;color:var(--t3)"><i class="ti ti-loader-2" style="animation:spin .8s linear infinite;display:inline-block;font-size:16px"></i> Scanning…</div>`;
+  var body = document.getElementById('issues-body');
+  body.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:14px;font-size:12px;color:var(--t3)"><i class="ti ti-loader-2 spin" style="font-size:16px"></i> Scanning your data…</div>';
   document.getElementById('apply-btn').disabled = true;
 
-  setTimeout(() => {
+  setTimeout(function() {
     analyseData();
     renderIssues();
     document.getElementById('apply-btn').disabled = false;
@@ -311,309 +351,311 @@ function goStep2() {
 }
 
 function analyseData() {
-  const headers  = sel.values[0];
-  const dataRows = sel.values.slice(1);
+  var headers  = sel.values[0];
+  var dataRows = sel.values.slice(1);
 
-  /* 1. BLANKS — per column */
-  const blankCols = {};
-  headers.forEach((h, j) => {
-    const empties = [];
-    dataRows.forEach((row, i) => {
-      const v = row[j];
+  /* blanks — per column */
+  var blankCols = {};
+  headers.forEach(function(h, j) {
+    var empties = [];
+    dataRows.forEach(function(row, i) {
+      var v = row[j];
       if (v === null || v === undefined || v.toString().trim() === '') empties.push(i + 2);
     });
-    if (empties.length) blankCols[j] = { header: h || `Col ${j+1}`, type: colTypes[j], count: empties.length, rows: empties };
+    if (empties.length) blankCols[j] = { header: h || ('Col ' + (j+1)), type: colTypes[j], count: empties.length };
   });
 
-  /* 2. DUPLICATES */
-  const seen = {}, dupes = [];
-  dataRows.forEach((row, i) => {
-    const key = JSON.stringify(row);
+  /* duplicates */
+  var seen = {}, dupes = [];
+  dataRows.forEach(function(row, i) {
+    var key = JSON.stringify(row);
     if (seen[key] !== undefined) {
-      dupes.push({ rowIndex: i + 2, preview: row.filter(c => c !== '' && c !== null && c !== undefined).slice(0,4).join(' · '), firstAt: seen[key] + 2 });
+      dupes.push({ rowIndex: i+2, preview: row.filter(function(c){ return c !== '' && c !== null && c !== undefined; }).slice(0,4).join(' · '), firstAt: seen[key]+2 });
     } else { seen[key] = i; }
   });
 
-  /* 3. FORMATTING — all string columns, check whitespace + mixed case */
-  const fmtCols = {};
-  headers.forEach((h, j) => {
+  /* formatting — every text/email column */
+  var fmtCols = {};
+  headers.forEach(function(h, j) {
     if (colTypes[j] === 'number' || colTypes[j] === 'date') return;
-    let issues = 0;
-    dataRows.forEach(row => {
-      const v = row[j];
-      if (typeof v === 'string' && v !== '' && (v !== v.trim() || v !== v.trim())) issues++;
+    var issueCount = 0;
+    dataRows.forEach(function(row) {
+      var v = row[j];
+      if (typeof v === 'string' && v !== '' && v !== v.trim()) issueCount++;
     });
-    // always include every text/email col in formatting so user can choose format
-    fmtCols[j] = { header: h || `Col ${j+1}`, type: colTypes[j], issueCount: issues };
+    fmtCols[j] = { header: h || ('Col ' + (j+1)), type: colTypes[j], issueCount: issueCount };
   });
 
-  /* 4. EMAILS */
-  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const badEmails = [];
-  headers.forEach((h, j) => {
+  /* bad emails */
+  var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var badEmails = [];
+  headers.forEach(function(h, j) {
     if (colTypes[j] !== 'email') return;
-    dataRows.forEach((row, i) => {
-      const v = row[j];
+    dataRows.forEach(function(row, i) {
+      var v = row[j];
       if (v && typeof v === 'string' && !emailRe.test(v.trim())) {
-        badEmails.push({ rowIndex: i + 2, colIdx: j, col: h, value: v });
+        badEmails.push({ rowIndex: i+2, colIdx: j, col: h, value: v });
       }
     });
   });
 
-  issues = { blankCols, dupes, fmtCols, badEmails };
+  issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, badEmails: badEmails };
+  fmtColKeys = Object.keys(fmtCols);
 
-  const total = Object.keys(blankCols).length + dupes.length + badEmails.length;
-  document.getElementById('issues-sub').textContent = `Step 2 of 2 — ${total} issue${total!==1?'s':''} found`;
+  var total = Object.keys(blankCols).length + dupes.length + badEmails.length;
+  document.getElementById('issues-sub').textContent = 'Step 2 of 2 — ' + total + ' issue' + (total!==1?'s':'') + ' found';
 }
 
 /* ════ RENDER ISSUES ════ */
 function renderIssues() {
-  const body = document.getElementById('issues-body');
+  var body = document.getElementById('issues-body');
   body.innerHTML = '';
-  const { blankCols, dupes, fmtCols, badEmails } = issues;
+  var bc = issues.blankCols, dupes = issues.dupes, fc = issues.fmtCols, be = issues.badEmails;
 
-  /* ── Blanks ── */
-  const blankCount = Object.values(blankCols).reduce((s,c)=>s+c.count,0);
-  const blanksAcc = makeAcc('blanks', 'ti-circle-minus', 'var(--red)', 'Blank cells', blankCount, 'b-red');
-  const blanksBody = blanksAcc.querySelector('.acc-body');
-  if (!blankCount) {
+  /* ── Blank cells ── */
+  var blankTotal = Object.values(bc).reduce(function(s,c){ return s+c.count; }, 0);
+  var blanksAcc = makeAcc('blanks', 'ti-circle-minus', 'var(--red)', 'Blank cells', blankTotal, 'b-red');
+  var blanksBody = blanksAcc.querySelector('.acc-body');
+  if (!blankTotal) {
     blanksBody.innerHTML = '<div class="acc-empty">No blank cells found</div>';
   } else {
-    Object.entries(blankCols).forEach(([j, col]) => {
-      const def = defaultVal(col.type);
-      const row = document.createElement('div');
+    Object.entries(bc).forEach(function(entry) {
+      var j = entry[0], col = entry[1];
+      var def = defaultVal(col.type);
+      var row = document.createElement('div');
       row.className = 'blank-col-row';
-      row.innerHTML = `
-        <div class="tdot dot-${col.type}"></div>
-        <div style="flex:1;min-width:0">
-          <div class="blank-col-name">${col.header}</div>
-          <div class="blank-col-meta">${col.count} blank cell${col.count!==1?'s':''} · ${col.type}</div>
-        </div>
-        <input class="blank-input" type="text" value="${def}" data-col="${j}" placeholder="Default value">`;
+      row.innerHTML =
+        '<div class="tdot dot-' + col.type + '"></div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="blank-col-name">' + col.header + '</div>' +
+          '<div class="blank-col-meta">' + col.count + ' blank cell' + (col.count!==1?'s':'') + ' · ' + col.type + '</div>' +
+        '</div>' +
+        '<input class="blank-input" type="text" value="' + def + '" data-col="' + j + '" placeholder="Default value">';
       blanksBody.appendChild(row);
     });
   }
   body.appendChild(blanksAcc);
 
-  /* ── Duplicates ── */
-  const dupesAcc = makeAcc('dupes', 'ti-copy', 'var(--amber)', 'Duplicate rows', dupes.length, 'b-amber');
-  const dupesBody = dupesAcc.querySelector('.acc-body');
+  /* ── Duplicate rows ── */
+  var dupesAcc = makeAcc('dupes', 'ti-copy', 'var(--amber)', 'Duplicate rows', dupes.length, 'b-amber');
+  var dupesBody = dupesAcc.querySelector('.acc-body');
   if (!dupes.length) {
     dupesBody.innerHTML = '<div class="acc-empty">No duplicate rows found</div>';
   } else {
-    const selAllRow = document.createElement('label');
-    selAllRow.className = 'sel-all-row';
-    selAllRow.innerHTML = `<input type="checkbox" id="dupe-all" checked> Select all (${dupes.length})`;
-    selAllRow.querySelector('input').addEventListener('change', e => {
-      dupesBody.querySelectorAll('.dupe-cb').forEach(cb => cb.checked = e.target.checked);
+    var selAll = document.createElement('label');
+    selAll.className = 'sel-all-row';
+    selAll.innerHTML = '<input type="checkbox" id="dupe-all" checked> Select all (' + dupes.length + ')';
+    selAll.querySelector('input').addEventListener('change', function(e) {
+      dupesBody.querySelectorAll('.dupe-cb').forEach(function(cb){ cb.checked = e.target.checked; });
     });
-    dupesBody.appendChild(selAllRow);
-    dupes.forEach((d, idx) => {
-      const row = document.createElement('div');
+    dupesBody.appendChild(selAll);
+    dupes.forEach(function(d, idx) {
+      var row = document.createElement('div');
       row.className = 'dupe-row';
-      row.innerHTML = `
-        <input type="checkbox" class="dupe-cb" data-idx="${idx}" checked>
-        <span class="dupe-rnum">Row ${d.rowIndex}</span>
-        <span class="dupe-preview">${d.preview}</span>
-        <span class="dupe-tag">≡ row ${d.firstAt}</span>`;
+      row.innerHTML =
+        '<input type="checkbox" class="dupe-cb" data-idx="' + idx + '" checked>' +
+        '<span class="dupe-rnum">Row ' + d.rowIndex + '</span>' +
+        '<span class="dupe-preview">' + d.preview + '</span>' +
+        '<span class="dupe-tag">≡ row ' + d.firstAt + '</span>';
       dupesBody.appendChild(row);
     });
   }
   body.appendChild(dupesAcc);
 
   /* ── Formatting ── */
-  const fmtKeys = Object.keys(fmtCols);
-  const fmtAcc = makeAcc('fmt', 'ti-text-spellcheck', 'var(--acc)', 'Formatting', fmtKeys.length, 'b-blue');
-  const fmtBody = fmtAcc.querySelector('.acc-body');
-  if (!fmtKeys.length) {
-    fmtBody.innerHTML = '<div class="acc-empty">No text/email columns found</div>';
+  var fmtAcc = makeAcc('fmt', 'ti-text-spellcheck', 'var(--acc)', 'Formatting', fmtColKeys.length, 'b-blue');
+  var fmtBody = fmtAcc.querySelector('.acc-body');
+  if (!fmtColKeys.length) {
+    fmtBody.innerHTML = '<div class="acc-empty">No text/email columns to format</div>';
   } else {
-    fmtKeys.forEach(j => {
-      const col = fmtCols[j];
-      const row = document.createElement('div');
+    fmtColKeys.forEach(function(j) {
+      var col = fc[j];
+      var row = document.createElement('div');
       row.className = 'fmt-col-row';
-      row.innerHTML = `
-        <div class="tdot dot-${col.type}"></div>
-        <div style="flex:1;min-width:0">
-          <div class="fmt-col-name">${col.header}</div>
-          <div class="fmt-col-type">${col.type} · ${col.issueCount} whitespace issue${col.issueCount!==1?'s':''}</div>
-        </div>
-        <select class="fmt-select" data-col="${j}">
-          <option value="none">No change</option>
-          <option value="trim">Trim spaces</option>
-          <option value="lower">lowercase</option>
-          <option value="upper">UPPERCASE</option>
-          <option value="title">Title Case</option>
-          ${col.type==='email'?'<option value="email">Fix email</option>':''}
-        </select>`;
-      // auto-select trim if issues found
+      row.innerHTML =
+        '<div class="tdot dot-' + col.type + '"></div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="fmt-col-name">' + col.header + '</div>' +
+          '<div class="fmt-col-type">' + col.type + ' · ' + col.issueCount + ' whitespace issue' + (col.issueCount!==1?'s':'') + '</div>' +
+        '</div>' +
+        '<select class="fmt-select" data-col="' + j + '">' +
+          '<option value="none">No change</option>' +
+          '<option value="trim">Trim spaces</option>' +
+          '<option value="lower">lowercase</option>' +
+          '<option value="upper">UPPERCASE</option>' +
+          '<option value="title">Title Case</option>' +
+          (col.type==='email'?'<option value="email">Fix email</option>':'') +
+        '</select>';
       if (col.issueCount > 0) row.querySelector('select').value = 'trim';
       fmtBody.appendChild(row);
     });
 
-    // add column button
-    const addRow = document.createElement('div');
+    /* add column button */
+    var addRow = document.createElement('div');
     addRow.className = 'add-col-row';
-    addRow.innerHTML = `<button class="add-col-btn" id="add-fmt-col"><i class="ti ti-plus"></i> Add another column</button>`;
-    fmtBody.appendChild(addRow);
-
-    document.getElementById('add-fmt-col').addEventListener('click', () => {
-      const headers = sel.values[0];
-      // find cols not already in fmt list
-      const already = new Set(fmtKeys.map(Number));
-      const available = headers.map((h,i)=>({h,i})).filter(x=>!already.has(x.i));
+    var addBtn = document.createElement('button');
+    addBtn.className = 'add-col-btn';
+    addBtn.innerHTML = '<i class="ti ti-plus"></i> Add another column';
+    addBtn.addEventListener('click', function() {
+      var headers = sel.values[0];
+      var already = new Set(fmtColKeys.map(Number));
+      var available = headers.map(function(h,i){ return {h:h,i:i}; }).filter(function(x){ return !already.has(x.i); });
       if (!available.length) { showToast('All columns already listed.', false); return; }
-      // add first available
-      const next = available[0];
-      const col = { header: next.h || `Col ${next.i+1}`, type: colTypes[next.i], issueCount: 0 };
+      var next = available[0];
+      var col = { header: next.h || ('Col ' + (next.i+1)), type: colTypes[next.i], issueCount: 0 };
       issues.fmtCols[next.i] = col;
-      fmtKeys.push(String(next.i));
-      const newRow = document.createElement('div');
+      fmtColKeys.push(String(next.i));
+      var newRow = document.createElement('div');
       newRow.className = 'fmt-col-row';
-      newRow.innerHTML = `
-        <div class="tdot dot-${col.type}"></div>
-        <div style="flex:1;min-width:0">
-          <div class="fmt-col-name">${col.header}</div>
-          <div class="fmt-col-type">${col.type} · manually added</div>
-        </div>
-        <select class="fmt-select" data-col="${next.i}">
-          <option value="none">No change</option>
-          <option value="trim">Trim spaces</option>
-          <option value="lower">lowercase</option>
-          <option value="upper">UPPERCASE</option>
-          <option value="title">Title Case</option>
-        </select>`;
+      newRow.innerHTML =
+        '<div class="tdot dot-' + col.type + '"></div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="fmt-col-name">' + col.header + '</div>' +
+          '<div class="fmt-col-type">' + col.type + ' · manually added</div>' +
+        '</div>' +
+        '<select class="fmt-select" data-col="' + next.i + '">' +
+          '<option value="none">No change</option>' +
+          '<option value="trim">Trim spaces</option>' +
+          '<option value="lower">lowercase</option>' +
+          '<option value="upper">UPPERCASE</option>' +
+          '<option value="title">Title Case</option>' +
+        '</select>';
       fmtBody.insertBefore(newRow, addRow);
     });
+    addRow.appendChild(addBtn);
+    fmtBody.appendChild(addRow);
   }
   body.appendChild(fmtAcc);
 
-  /* ── Emails ── */
-  const emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect emails', badEmails.length, 'b-amber');
-  const emailBody = emailAcc.querySelector('.acc-body');
-  if (!badEmails.length) {
+  /* ── Incorrect emails ── */
+  var emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect emails', be.length, 'b-amber');
+  var emailBody = emailAcc.querySelector('.acc-body');
+  if (!be.length) {
     emailBody.innerHTML = '<div class="acc-empty">No invalid emails found</div>';
   } else {
-    badEmails.forEach((e, idx) => {
-      const row = document.createElement('div');
+    be.forEach(function(e, idx) {
+      var row = document.createElement('div');
       row.className = 'email-row';
-      row.innerHTML = `
-        <span class="email-rnum">Row ${e.rowIndex}</span>
-        <span class="email-val">${e.value}</span>
-        <input class="email-input" type="text" value="x@gmail.com" data-idx="${idx}" placeholder="Replacement">`;
+      row.innerHTML =
+        '<span class="email-rnum">Row ' + e.rowIndex + '</span>' +
+        '<span class="email-val">' + e.value + '</span>' +
+        '<input class="email-input" type="text" value="x@gmail.com" data-idx="' + idx + '" placeholder="Replacement">';
       emailBody.appendChild(row);
     });
   }
   body.appendChild(emailAcc);
 }
 
+/* ════ ACCORDION ════ */
 function makeAcc(id, icon, iconColor, label, count, badgeClass) {
-  const wrap = document.createElement('div');
+  var wrap = document.createElement('div');
   wrap.className = 'acc';
-  wrap.innerHTML = `
-    <div class="acc-hdr" onclick="toggleAcc('${id}')">
-      <i class="ti ${icon} acc-hdr-icon" style="color:${iconColor}"></i>
-      <span class="acc-hdr-label">${label}</span>
-      <span class="badge ${badgeClass}">${count}</span>
-      <i class="ti ti-chevron-down acc-chev" id="chev-${id}"></i>
-    </div>
-    <div class="acc-body" id="abody-${id}"></div>`;
+  wrap.innerHTML =
+    '<div class="acc-hdr" id="hdr-' + id + '">' +
+      '<i class="ti ' + icon + ' acc-hdr-icon" style="color:' + iconColor + '"></i>' +
+      '<span class="acc-hdr-label">' + label + '</span>' +
+      '<span class="badge ' + badgeClass + '">' + count + '</span>' +
+      '<i class="ti ti-chevron-down acc-chev" id="chev-' + id + '"></i>' +
+    '</div>' +
+    '<div class="acc-body" id="abody-' + id + '"></div>';
+
+  wrap.querySelector('.acc-hdr').addEventListener('click', function(){ toggleAcc(id); });
   return wrap;
 }
 
 function toggleAcc(id) {
-  document.getElementById(`abody-${id}`).classList.toggle('open');
-  document.getElementById(`chev-${id}`).classList.toggle('open');
+  var b = document.getElementById('abody-' + id);
+  var c = document.getElementById('chev-' + id);
+  if (b) b.classList.toggle('open');
+  if (c) c.classList.toggle('open');
 }
 
-/* ════ DEFAULT VALUES ════ */
+/* ════ DEFAULTS ════ */
 function defaultVal(type) {
   return { text:'N/A', number:'0', email:'x@gmail.com', date:'Unknown' }[type] || 'N/A';
 }
 
 /* ════ APPLY ════ */
-async function applyClean() {
-  const btn = document.getElementById('apply-btn');
+function applyClean() {
+  var btn = document.getElementById('apply-btn');
   btn.disabled = true; btn.textContent = 'Creating sheet…';
 
-  try {
-    const headers  = sel.values[0];
-    let   dataRows = sel.values.slice(1).map(r => [...r]);
+  var headers  = sel.values[0];
+  var dataRows = sel.values.slice(1).map(function(r){ return r.slice(); });
 
-    /* 1. fill blanks */
-    Object.entries(issues.blankCols).forEach(([j, col]) => {
-      const input = document.querySelector(`.blank-input[data-col="${j}"]`);
-      const fillVal = input ? input.value : defaultVal(col.type);
-      dataRows.forEach(row => {
-        if (row[j] === null || row[j] === undefined || row[j].toString().trim() === '') row[j] = fillVal;
-      });
+  /* 1. fill blanks */
+  Object.entries(issues.blankCols).forEach(function(entry) {
+    var j = entry[0];
+    var inp = document.querySelector('.blank-input[data-col="' + j + '"]');
+    var fillVal = inp ? inp.value : defaultVal(entry[1].type);
+    dataRows.forEach(function(row) {
+      if (row[j] === null || row[j] === undefined || row[j].toString().trim() === '') row[j] = fillVal;
     });
+  });
 
-    /* 2. remove checked dupes */
-    const dupeIdxToRemove = new Set();
-    document.querySelectorAll('.dupe-cb:checked').forEach(cb => {
-      dupeIdxToRemove.add(issues.dupes[+cb.dataset.idx].rowIndex - 2);
+  /* 2. remove checked dupes */
+  var dupeIdxToRemove = new Set();
+  document.querySelectorAll('.dupe-cb:checked').forEach(function(cb) {
+    dupeIdxToRemove.add(issues.dupes[+cb.dataset.idx].rowIndex - 2);
+  });
+  dataRows = dataRows.filter(function(_, i){ return !dupeIdxToRemove.has(i); });
+
+  /* 3. formatting */
+  document.querySelectorAll('.fmt-select').forEach(function(s) {
+    var j = +s.dataset.col, mode = s.value;
+    if (mode === 'none') return;
+    dataRows.forEach(function(row) {
+      var v = row[j];
+      if (typeof v !== 'string' || v === '') return;
+      if (mode === 'trim')  row[j] = v.trim();
+      if (mode === 'lower') row[j] = v.trim().toLowerCase();
+      if (mode === 'upper') row[j] = v.trim().toUpperCase();
+      if (mode === 'title') row[j] = v.trim().replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+      if (mode === 'email') row[j] = v.trim().toLowerCase();
     });
-    dataRows = dataRows.filter((_, i) => !dupeIdxToRemove.has(i));
+  });
 
-    /* 3. formatting */
-    document.querySelectorAll('.fmt-select').forEach(sel2 => {
-      const j = +sel2.dataset.col;
-      const mode = sel2.value;
-      if (mode === 'none') return;
-      dataRows.forEach(row => {
-        const v = row[j];
-        if (typeof v !== 'string' || v === '') return;
-        if (mode === 'trim')  row[j] = v.trim();
-        if (mode === 'lower') row[j] = v.trim().toLowerCase();
-        if (mode === 'upper') row[j] = v.trim().toUpperCase();
-        if (mode === 'title') row[j] = v.trim().replace(/\b\w/g, c => c.toUpperCase());
-        if (mode === 'email') row[j] = v.trim().toLowerCase();
-      });
-    });
+  /* 4. fix emails */
+  document.querySelectorAll('.email-input').forEach(function(inp) {
+    var idx = +inp.dataset.idx;
+    var e = issues.badEmails[idx];
+    var dataIdx = e.rowIndex - 2;
+    if (dataRows[dataIdx] !== undefined) dataRows[dataIdx][e.colIdx] = inp.value;
+  });
 
-    /* 4. fix emails */
-    document.querySelectorAll('.email-input').forEach(inp => {
-      const idx = +inp.dataset.idx;
-      const e = issues.badEmails[idx];
-      // find the actual row (accounting for removed dupes — use rowIndex)
-      const dataIdx = e.rowIndex - 2;
-      if (dataRows[dataIdx] !== undefined) dataRows[dataIdx][e.colIdx] = inp.value;
-    });
+  var cleanedData = [headers].concat(dataRows);
 
-    const cleanedData = [headers, ...dataRows];
-
-    await Excel.run(async ctx => {
-      const sheets = ctx.workbook.worksheets;
-      sheets.load('items/name');
-      await ctx.sync();
-      const existing = sheets.items.map(s => s.name);
-      let name = 'Cleaned Data'; let n = 1;
-      while (existing.includes(name)) name = `Cleaned Data ${n++}`;
-      const ns = sheets.add(name);
+  Excel.run(function(ctx) {
+    var sheets = ctx.workbook.worksheets;
+    sheets.load('items/name');
+    return ctx.sync().then(function() {
+      var existing = sheets.items.map(function(s){ return s.name; });
+      var name = 'Cleaned Data', n = 1;
+      while (existing.includes(name)) name = 'Cleaned Data ' + (n++);
+      var ns = sheets.add(name);
       ns.getRangeByIndexes(0, 0, cleanedData.length, cleanedData[0].length).values = cleanedData;
       ns.getRangeByIndexes(0, 0, 1, cleanedData[0].length).format.font.bold = true;
       ns.activate();
-      await ctx.sync();
+      return ctx.sync();
     });
-
+  }).then(function() {
     showToast('✓ Cleaned sheet created!', false);
     goHome();
-  } catch(e) {
+  }).catch(function(e) {
     showToast(e.message, true);
-  } finally {
+  }).finally(function() {
     btn.disabled = false; btn.textContent = 'Apply & create cleaned sheet';
-  }
+  });
 }
 
 /* ════ TOAST ════ */
 function showToast(msg, err) {
-  const t = document.getElementById('toast');
+  var t = document.getElementById('toast');
   t.textContent = msg; t.className = err ? 'err' : '';
   t.style.display = 'block';
-  clearTimeout(t._t); t._t = setTimeout(() => t.style.display='none', 3500);
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.style.display = 'none'; }, 3500);
 }
 </script>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </body>
 </html>
