@@ -651,11 +651,13 @@ function normalizeDate(v, targetFormat) {
   var m = String(canonical).match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
   if (!m) return v; /* truly unparseable — leave unchanged */
   var yr=m[1], mo=m[2], dy=m[3];
-  if (targetFormat==='YYYY/MM/DD') return yr+'/'+mo+'/'+dy;
-  if (targetFormat==='YYYY-MM-DD') return yr+'-'+mo+'-'+dy;
+  /* For YYYY-first formats, prefix with a single quote so Excel stores them as
+     text and does NOT re-parse/reformat them according to the locale date format. */
+  if (targetFormat==='YYYY/MM/DD') return "'" + yr+'/'+mo+'/'+dy;
+  if (targetFormat==='YYYY-MM-DD') return "'" + yr+'-'+mo+'-'+dy;
   if (targetFormat==='DD/MM/YYYY') return dy+'/'+mo+'/'+yr;
   if (targetFormat==='MM/DD/YYYY') return mo+'/'+dy+'/'+yr;
-  return yr+'/'+mo+'/'+dy;
+  return "'" + yr+'/'+mo+'/'+dy;
 }
 
 /* ════ RENDER ISSUES ════ */
