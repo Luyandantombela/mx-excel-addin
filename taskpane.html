@@ -884,6 +884,20 @@ function applyClean() {
       var thouMode = col.chosenThousands || 'none';
       /* skip entirely if nothing changes */
       if (decMode === 'keep' && txtMode === 'keep' && thouMode === 'none') return;
+      /* ── pre-scan: find max dp across column so all values get same decimal places ── */
+      var resolvedDp;
+      if (decMode === 'keep') {
+        var maxDp = 0;
+        dataRows.forEach(function(row) {
+          var v = row[jNum];
+          if (v === '' || v === null || v === undefined) return;
+          var cl = String(v).trim(); if (txtMode === 'remove') cl = cl.replace(/[^0-9.\-]/g, ''); cl = cl.replace(/[,\s]/g, '');
+          if (cl.indexOf('.') >= 0) maxDp = Math.max(maxDp, cl.split('.')[1].length);
+        });
+        resolvedDp = maxDp;
+      } else {
+        resolvedDp = +decMode;
+      }
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
@@ -893,14 +907,8 @@ function applyClean() {
         var cleaned = s.replace(/[,\s]/g, '');
         var num = parseFloat(cleaned);
         if (isNaN(num)) return; /* unparseable — leave unchanged */
-        /* ── decimal places: toFixed on every value so 750 → 750.00 ── */
-        var formatted;
-        if (decMode === 'keep') {
-          var origDec = cleaned.indexOf('.') >= 0 ? cleaned.split('.')[1].length : 0;
-          formatted = num.toFixed(origDec);
-        } else {
-          formatted = num.toFixed(+decMode); /* ALL values get same dp */
-        }
+        /* ── decimal places: uniform dp across every value in the column ── */
+        var formatted = num.toFixed(resolvedDp);
         /* ── thousands separator ── */
         if (thouMode !== 'none') {
           var fp = formatted.split('.');
