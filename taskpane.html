@@ -328,6 +328,7 @@ function goHome()  { show('home'); readSel(); }
 function goStep1() { show('step1'); }
 function handleFeature(f) {
   if (f === 'clean') openClean();
+  else if (f === 'compare') openCompare();
   else showToast('"' + f + '" — coming soon!', false);
 }
 
@@ -979,6 +980,220 @@ function applyClean() {
   });
 }
 
+
+
+/* ════════════════════════════════════════════
+   COMPARE SHEETS
+   ════════════════════════════════════════════ */
+
+var cmpState = {
+  rangeA: null,   /* { values, headers, address } */
+  rangeB: null,
+  findOption: 'missing',
+  mappings: []    /* [{ colA: 0, colB: 0 }, ...] — index into headers arrays */
+};
+
+function openCompare() {
+  cmpState = { rangeA: null, rangeB: null, findOption: 'missing', mappings: [] };
+  document.getElementById('cmpA-addr').textContent = '—';
+  document.getElementById('cmpA-info').textContent = '';
+  document.getElementById('cmpB-addr').textContent = '—';
+  document.getElementById('cmpB-info').textContent = '';
+  document.getElementById('cmp-find-opt').value = 'missing';
+  document.getElementById('cmp-result-msg').style.display = 'none';
+  show('cmp1');
+}
+
+/* Capture the current Excel selection into rangeA or rangeB */
+function captureRange(which) {
+  Excel.run(function(ctx) {
+    var r = ctx.workbook.getSelectedRange();
+    r.load(['address', 'values', 'rowCount', 'columnCount']);
+    return ctx.sync().then(function() {
+      if (r.rowCount < 2) { showToast('Select at least a header row + 1 data row.', true); return; }
+      var data = {
+        address:  r.address,
+        values:   r.values,
+        headers:  r.values[0].map(function(h){ return String(h || '').trim(); }),
+        rows:     r.values.slice(1)
+      };
+      if (which === 'A') {
+        cmpState.rangeA = data;
+        document.getElementById('cmpA-addr').textContent = data.address;
+        document.getElementById('cmpA-info').textContent = (r.rowCount - 1) + ' data rows · ' + r.columnCount + ' columns';
+      } else {
+        cmpState.rangeB = data;
+        document.getElementById('cmpB-addr').textContent = data.address;
+        document.getElementById('cmpB-info').textContent = (r.rowCount - 1) + ' data rows · ' + r.columnCount + ' columns';
+      }
+    });
+  }).catch(function(e){ showToast(e.message, true); });
+}
+
+/* Go to step 2 — validate then build mapping UI */
+function goCmpStep2() {
+  if (!cmpState.rangeA) { showToast('Please capture Range A first.', true); return; }
+  if (!cmpState.rangeB) { showToast('Please capture Range B first.', true); return; }
+
+  /* Auto-map: match headers by name first, fallback to index 0 */
+  cmpState.mappings = [];
+  var matched = false;
+  cmpState.rangeA.headers.forEach(function(ha, ia) {
+    cmpState.rangeB.headers.forEach(function(hb, ib) {
+      if (!matched && ha && hb && ha.toLowerCase() === hb.toLowerCase()) {
+        cmpState.mappings.push({ colA: ia, colB: ib });
+        matched = true;
+      }
+    });
+  });
+  if (!cmpState.mappings.length) {
+    cmpState.mappings = [{ colA: 0, colB: 0 }];
+  }
+
+  document.getElementById('cmp-result-msg').style.display = 'none';
+  renderCmpMappings();
+  show('cmp2');
+}
+
+/* Render the column-mapping rows */
+function renderCmpMappings() {
+  var container = document.getElementById('cmp-mappings');
+  container.innerHTML = '';
+  cmpState.mappings.forEach(function(m, idx) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center';
+
+    /* Select A */
+    var selA = document.createElement('select');
+    selA.className = 'p-sel';
+    selA.style.cssText = 'flex:1;font-size:11px';
+    cmpState.rangeA.headers.forEach(function(h, i) {
+      var o = document.createElement('option');
+      o.value = i; o.textContent = h || ('Col ' + (i+1));
+      if (i === m.colA) o.selected = true;
+      selA.appendChild(o);
+    });
+    selA.onchange = function() { cmpState.mappings[idx].colA = +this.value; };
+
+    /* Arrow icon */
+    var arrow = document.createElement('i');
+    arrow.className = 'ti ti-arrows-horizontal';
+    arrow.style.cssText = 'font-size:14px;color:var(--t3);flex-shrink:0';
+
+    /* Select B */
+    var selB = document.createElement('select');
+    selB.className = 'p-sel';
+    selB.style.cssText = 'flex:1;font-size:11px';
+    cmpState.rangeB.headers.forEach(function(h, i) {
+      var o = document.createElement('option');
+      o.value = i; o.textContent = h || ('Col ' + (i+1));
+      if (i === m.colB) o.selected = true;
+      selB.appendChild(o);
+    });
+    selB.onchange = function() { cmpState.mappings[idx].colB = +this.value; };
+
+    /* Remove button */
+    var del = document.createElement('button');
+    del.className = 'tb-btn';
+    del.style.cssText = 'padding:4px 8px;flex-shrink:0';
+    del.innerHTML = '<i class="ti ti-trash"></i>';
+    del.disabled = cmpState.mappings.length <= 1;
+    del.onclick = function() {
+      if (cmpState.mappings.length > 1) { cmpState.mappings.splice(idx, 1); renderCmpMappings(); }
+    };
+
+    row.appendChild(selA);
+    row.appendChild(arrow);
+    row.appendChild(selB);
+    row.appendChild(del);
+    container.appendChild(row);
+  });
+}
+
+function addCmpMapping() {
+  cmpState.mappings.push({ colA: 0, colB: 0 });
+  renderCmpMappings();
+}
+
+/* Apply the compare and write result to a new sheet */
+function applyCompare() {
+  var btn = document.getElementById('cmp-apply-btn');
+  btn.disabled = true; btn.textContent = 'Working…';
+
+  var A = cmpState.rangeA;
+  var B = cmpState.rangeB;
+  var findOption = cmpState.findOption;
+
+  /* Build a Set of keys from B using mapped B columns */
+  var bKeys = new Set();
+  B.rows.forEach(function(row) {
+    var keyParts = [];
+    cmpState.mappings.forEach(function(m) {
+      var v = row[m.colB];
+      if (v !== null && v !== undefined && String(v).trim() !== '') {
+        keyParts.push(String(v).trim().toLowerCase());
+      }
+    });
+    if (keyParts.length) bKeys.add(keyParts.join('|||'));
+  });
+
+  /* Filter A rows */
+  var resultRows = A.rows.filter(function(row) {
+    var keyParts = [];
+    cmpState.mappings.forEach(function(m) {
+      var v = row[m.colA];
+      if (v !== null && v !== undefined && String(v).trim() !== '') {
+        keyParts.push(String(v).trim().toLowerCase());
+      }
+    });
+    var key = keyParts.join('|||');
+    return findOption === 'missing' ? !bKeys.has(key) : bKeys.has(key);
+  });
+
+  var outputData = [A.headers].concat(resultRows);
+
+  /* Write to a new sheet */
+  Excel.run(function(ctx) {
+    var sheets = ctx.workbook.worksheets;
+    sheets.load('items/name');
+    return ctx.sync().then(function() {
+      var existing = sheets.items.map(function(s){ return s.name; });
+      var baseName = findOption === 'missing' ? 'Missing Rows' : 'Matching Rows';
+      var name = baseName, n = 1;
+      while (existing.indexOf(name) >= 0) name = baseName + ' ' + (n++);
+
+      var ws = sheets.add(name);
+      ws.activate();
+
+      var range = ws.getCell(0, 0).getResizedRange(outputData.length - 1, A.headers.length - 1);
+      range.values = outputData;
+
+      /* Bold the header row */
+      ws.getRange('1:1').format.font.bold = true;
+      range.format.autofitColumns();
+
+      return ctx.sync().then(function() {
+        /* Show result message in panel */
+        var msgDiv = document.getElementById('cmp-result-msg');
+        var aName = A.address;
+        var bName = B.address;
+        var verb  = findOption === 'missing' ? 'missing from' : 'matching in';
+        msgDiv.innerHTML =
+          '<i class="ti ti-circle-check" style="color:var(--green);margin-right:6px"></i>' +
+          '<strong>' + resultRows.length + ' row' + (resultRows.length !== 1 ? 's' : '') + '</strong> found — ' +
+          'rows from <strong>' + aName + '</strong> ' + verb + ' <strong>' + bName + '</strong>.<br>' +
+          '<span style="color:var(--t3);margin-top:4px;display:block">Results written to sheet <strong>' + name + '</strong>.</span>';
+        msgDiv.style.display = 'block';
+        showToast('✓ Result sheet "' + name + '" created!', false);
+      });
+    });
+  }).catch(function(e) {
+    showToast(e.message, true);
+  }).finally(function() {
+    btn.disabled = false; btn.textContent = 'Apply & create result sheet';
+  });
+}
+
 /* ════ TOAST ════ */
 function showToast(msg, err) {
   var t = document.getElementById('toast');
@@ -988,5 +1203,90 @@ function showToast(msg, err) {
   t._timer = setTimeout(function(){ t.style.display = 'none'; }, 3500);
 }
 </script>
+
+<!-- ══════════ COMPARE — STEP 1 ══════════ -->
+<div class="screen" id="cmp1">
+  <div class="panel-header">
+    <button class="back-btn" onclick="goHome()"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">Compare Sheets</div>
+      <div class="panel-sub" id="cmp1-sub">Step 1 of 2 — Select ranges & options</div>
+    </div>
+  </div>
+  <div class="panel-body" style="gap:14px">
+
+    <!-- Range A -->
+    <div class="acc-card" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--t2);letter-spacing:.04em;text-transform:uppercase">File / Range A</div>
+      <div style="font-size:10.5px;color:var(--t3)">Select your first range in Excel, then click Capture.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="flex:1;font-size:11px;font-family:var(--mono);padding:6px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);min-height:28px" id="cmpA-addr">—</div>
+        <button class="tb-btn" onclick="captureRange('A')" style="white-space:nowrap;padding:6px 12px"><i class="ti ti-crosshair"></i> Capture</button>
+      </div>
+      <div style="font-size:10px;color:var(--t3)" id="cmpA-info"></div>
+    </div>
+
+    <!-- Range B -->
+    <div class="acc-card" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--t2);letter-spacing:.04em;text-transform:uppercase">File / Range B</div>
+      <div style="font-size:10.5px;color:var(--t3)">Select your second range in Excel, then click Capture.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="flex:1;font-size:11px;font-family:var(--mono);padding:6px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);min-height:28px" id="cmpB-addr">—</div>
+        <button class="tb-btn" onclick="captureRange('B')" style="white-space:nowrap;padding:6px 12px"><i class="ti ti-crosshair"></i> Capture</button>
+      </div>
+      <div style="font-size:10px;color:var(--t3)" id="cmpB-info"></div>
+    </div>
+
+    <!-- Find option -->
+    <div class="acc-card" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--t2);letter-spacing:.04em;text-transform:uppercase">What to find</div>
+      <select class="p-sel" id="cmp-find-opt" style="font-size:11px;width:100%" onchange="cmpState.findOption=this.value">
+        <option value="missing">Rows in A missing from B</option>
+        <option value="matching">Rows in A that match B</option>
+      </select>
+    </div>
+
+  </div>
+  <div class="panel-footer">
+    <button class="primary-btn" id="cmp1-next-btn" onclick="goCmpStep2()">Next — Map columns</button>
+  </div>
+</div>
+
+<!-- ══════════ COMPARE — STEP 2 ══════════ -->
+<div class="screen" id="cmp2">
+  <div class="panel-header">
+    <button class="back-btn" onclick="show('cmp1')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">Compare Sheets</div>
+      <div class="panel-sub" id="cmp2-sub">Step 2 of 2 — Map columns to compare</div>
+    </div>
+  </div>
+  <div class="panel-body" style="gap:14px">
+
+    <!-- Column headers -->
+    <div style="display:flex;gap:8px;padding:0 2px">
+      <div style="flex:1;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">Range A column</div>
+      <div style="width:24px"></div>
+      <div style="flex:1;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">Range B column</div>
+      <div style="width:28px"></div>
+    </div>
+
+    <!-- Mapping rows -->
+    <div id="cmp-mappings" style="display:flex;flex-direction:column;gap:8px"></div>
+
+    <!-- Add mapping -->
+    <button class="tb-btn" onclick="addCmpMapping()" style="align-self:flex-start;margin-top:2px">
+      <i class="ti ti-plus"></i> Add column pair
+    </button>
+
+    <!-- Result message (shown after apply) -->
+    <div id="cmp-result-msg" style="display:none;margin-top:4px;padding:12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;font-size:11px;color:var(--t1);line-height:1.6"></div>
+
+  </div>
+  <div class="panel-footer">
+    <button class="primary-btn" id="cmp-apply-btn" onclick="applyCompare()">Apply & create result sheet</button>
+  </div>
+</div>
+
 </body>
 </html>
