@@ -339,8 +339,15 @@ function openClean() {
     sel.values = sel.values.map(function(row, ri) {
       return row.map(function(v, ci) {
         var t = sel.text[ri] && sel.text[ri][ci] != null ? String(sel.text[ri][ci]) : '';
-        /* If raw value is a number and text looks like a date string → use text */
-        if (typeof v === 'number' && /\d/.test(t) && /[\/\-]/.test(t)) return t;
+        /* Excel serial date: raw value is a number, displayed text is M/D/YYYY */
+        if (typeof v === 'number' && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(t)) {
+          /* Parse as M/D/YYYY (Excel default locale) → store as YYYY/MM/DD canonical */
+          var p = t.split('/');
+          var mo = String(p[0]).padStart(2,'0');
+          var dy = String(p[1]).padStart(2,'0');
+          var yr = p[2];
+          return yr + '/' + mo + '/' + dy;
+        }
         return v;
       });
     });
@@ -633,9 +640,9 @@ function detectDateFormat(v) {
 function normalizeDate(v, targetFormat) {
   if (v === null || v === undefined || v === '') return v;
   var canonical = tryParseDate(v);
-  if (canonical === v) return v; /* unrecognised */
+  /* canonical may equal v if already YYYY/MM/DD — that's fine, still reformat */
   var m = String(canonical).match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-  if (!m) return v;
+  if (!m) return v; /* truly unparseable — leave unchanged */
   var yr=m[1], mo=m[2], dy=m[3];
   if (targetFormat==='YYYY/MM/DD') return yr+'/'+mo+'/'+dy;
   if (targetFormat==='YYYY-MM-DD') return yr+'-'+mo+'-'+dy;
