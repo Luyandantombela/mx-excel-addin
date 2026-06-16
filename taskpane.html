@@ -356,7 +356,23 @@ function openClean() {
   }
   var headers = sel.values[0];
   var sample  = sel.values[1] || [];
-  colTypes = headers.map(function(h, i){ return detectType(h, sample[i]); });
+  var dataRowsForType = sel.values.slice(1);
+  colTypes = headers.map(function(h, i) {
+    /* Scan full column: if ANY cell is non-numeric string, column is text */
+    var hasNonNum = false, hasNum = false;
+    dataRowsForType.forEach(function(row) {
+      var v = row[i];
+      if (v === null || v === undefined || String(v).trim() === '') return;
+      if (typeof v === 'number') { hasNum = true; return; }
+      var s = String(v).trim();
+      /* pure number string (with optional $ R currency, commas, spaces) */
+      if (/^[\$R]?[\d,\s]+\.?\d*$/.test(s)) { hasNum = true; return; }
+      hasNonNum = true;
+    });
+    /* Mixed text+numbers → text so user sees the column is not clean */
+    if (hasNonNum && hasNum) return 'text';
+    return detectType(h, sample[i]);
+  });
 
   var list = document.getElementById('col-type-list');
   list.innerHTML = '<div class="step-label" style="margin-bottom:4px">Confirm column types</div>';
@@ -555,7 +571,6 @@ function buildFmtRow(j, col) {
     /* Ensure defaults are written to the data object immediately so applyClean
        reads the correct values even if the user never touches a dropdown. */
     col.chosenDecimals  = col.chosenDecimals  || 'keep';
-    col.chosenNumtext   = col.chosenNumtext   || 'keep';
     col.chosenThousands = col.chosenThousands || 'none';
     controlsHtml =
       '<div style="display:flex;flex-direction:column;gap:6px;width:160px">' +
@@ -568,14 +583,9 @@ function buildFmtRow(j, col) {
             '<option value="2">2</option><option value="3">3</option>' +
           '</select>' +
         '</div>' +
-        '<div style="display:flex;gap:6px;align-items:center">' +
-          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Non-num:</span>' +
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="numtext" style="font-size:11px;flex:1;padding:4px 6px"' +
-            ' onchange="issues.fmtCols[' + j + '].chosenNumtext=this.value">' +
-            '<option value="keep" selected>Keep</option>' +
-            '<option value="remove">Remove</option>' +
-          '</select>' +
-        '</div>' +
+        (col.hasNonNumeric ? '<div style="font-size:10px;color:var(--warning,#f59e0b);margin-top:2px;line-height:1.4">' +
+          '<i class="ti ti-info-circle" style="margin-right:3px"></i>Non-numeric characters will be removed automatically.' +
+        '</div>' : '') +
         '<div style="display:flex;gap:6px;align-items:center">' +
           '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Thousands:</span>' +
           '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="thousands" style="font-size:11px;flex:1;padding:4px 6px"' +
@@ -885,120 +895,51 @@ function applyClean() {
         if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(v, targetFmt);
       });
     } else if (col.issueType === 'number') {
-      /* Read directly from the DOM selects as the source of truth —
-         this guarantees the correct value even if onchange misfired. */
-      var decSel  = document.querySelector('.fmt-control[data-col="' + jNum + '"][data-mode="decimals"]');
-      var txtSel  = document.querySelector('.fmt-control[data-col="' + jNum + '"][data-mode="numtext"]');
-      var thouSel = document.querySelector('.fmt-control[data-col="' + jNum + '"][data-mode="thousands"]');
-      var decMode  = decSel  ? decSel.value  : (col.chosenDecimals  || 'keep');
-      var txtMode  = txtSel  ? txtSel.value  : (col.chosenNumtext   || 'keep');
-      var thouMode = thouSel ? thouSel.value : (col.chosenThousands || 'none');
-      /* skip entirely if nothing changes */
-      if (decMode === 'keep' && txtMode === 'keep' && thouMode === 'none') return;
-
-      /* ── helper: extract prefix, core numeric string, and suffix from a raw value ──
-         Examples:
-           "R1500"      → prefix="R", core="1500",   suffix=""
-           "$ 1, 200"   → prefix="$ ", core="1200",  suffix=""   (spaces/commas stripped from core)
-           "ME 100"     → prefix="ME ", core="100",  suffix=""
-           "1,200.50"   → prefix="",   core="1200.50", suffix=""
-           "-$1,200"    → prefix="-$", core="1200",  suffix=""
-      */
-      function splitNumericParts(s) {
-        s = String(s).trim();
-        /* Find the first digit */
-        var firstDigit = s.search(/\d/);
-        if (firstDigit < 0) return null; /* no digits at all */
-        var prefix = s.slice(0, firstDigit);
-        var sign = prefix.indexOf('-') >= 0 ? '-' : '';
-
-        /* Find the last digit in the string */
-        var lastDigit = -1;
-        for (var i = s.length - 1; i >= 0; i--) {
-          if (/\d/.test(s[i])) { lastDigit = i; break; }
-        }
-
-        /* Numeric body = everything from first digit to last digit (inclusive).
-           This correctly captures "2 000", "1,200.50", "1 200.50" etc. */
-        var numBody = s.slice(firstDigit, lastDigit + 1);
-        var suffix  = s.slice(lastDigit + 1);
-
-        /* Strip any non-digit non-dot chars from the body to get a parseable float.
-           This handles comma-thousands ("1,200"), space-thousands ("2 000"), etc. */
-        var cleanCore = numBody.replace(/[^0-9.]/g, '');
-        /* Guard against multiple dots (e.g. period-thousands "1.200.50" → keep only last dot) */
-        var dotCount = (cleanCore.match(/\./g) || []).length;
-        if (dotCount > 1) {
-          /* Treat all but the last dot as thousands separators — remove them */
-          var lastDot = cleanCore.lastIndexOf('.');
-          cleanCore = cleanCore.slice(0, lastDot).replace(/\./g, '') + cleanCore.slice(lastDot);
-        }
-
-        return { prefix: prefix, sign: sign, core: cleanCore, suffix: suffix };
-      }
-
-      /* ── pre-scan: find max dp across column so 'keep' keeps uniform decimals ── */
+      var decMode  = col.chosenDecimals  || 'keep';
+      var thouMode = col.chosenThousands || 'none';
+      /* skip if user wants no changes and column has no non-numeric chars */
+      if (decMode === 'keep' && thouMode === 'none' && !col.hasNonNumeric) return;
+      /* ── pre-scan: find max dp across column so all values get same decimal places ── */
       var resolvedDp;
       if (decMode === 'keep') {
         var maxDp = 0;
         dataRows.forEach(function(row) {
           var v = row[jNum];
           if (v === '' || v === null || v === undefined) return;
-          var parts = splitNumericParts(String(v));
-          if (!parts) return;
-          if (parts.core.indexOf('.') >= 0) maxDp = Math.max(maxDp, parts.core.split('.')[1].length);
+          var cl = String(v).trim().replace(/[^0-9.\-]/g, '');
+          if (cl.indexOf('.') >= 0) maxDp = Math.max(maxDp, cl.split('.')[1].length);
         });
-        resolvedDp = maxDp;
+        /* if no source values have decimals but a thousands separator is chosen,
+           default to 2dp so 750 becomes 750.00 not 750 */
+        resolvedDp = (maxDp === 0 && thouMode !== 'none') ? 2 : maxDp;
       } else {
         resolvedDp = +decMode;
       }
-
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v).trim();
-
-        var parts = splitNumericParts(s);
-        if (!parts) return; /* no digits at all — leave unchanged */
-
-        var num = parseFloat(parts.sign + parts.core);
+        /* Always strip non-numeric chars + separators for reliable parsing */
+        var cleaned = s.replace(/[^0-9.\-]/g, '');
+        var num = parseFloat(cleaned);
         if (isNaN(num)) return; /* unparseable — leave unchanged */
-
-        /* ── decimal places ── */
-        var formatted = Math.abs(num).toFixed(resolvedDp);
-
+        /* ── decimal places: uniform dp across every value in the column ── */
+        var formatted = num.toFixed(resolvedDp);
         /* ── thousands separator ── */
-        var numStr;
         if (thouMode !== 'none') {
           var fp = formatted.split('.');
-          var intPart = fp[0];
-          var decPart = fp.length > 1 ? fp[1] : null;
+          var intPart = fp[0], decPart = fp[1];
           var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
+          var neg = intPart.charAt(0) === '-';
+          if (neg) intPart = intPart.slice(1);
           intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
-          /* period-thousands: use comma as decimal separator to avoid ambiguity */
+          if (neg) intPart = '-' + intPart;
+          /* period-thousands → comma decimal to avoid ambiguity */
           var decSepChar = thouMode === 'period' ? ',' : '.';
-          numStr = (decPart !== null) ? intPart + decSepChar + decPart : intPart;
+          row[jNum] = decPart !== undefined ? intPart + decSepChar + decPart : intPart;
         } else {
-          /* no thousands sep — just the number digits */
-          numStr = formatted;
-        }
-
-        /* ── sign ── */
-        if (parts.sign === '-') numStr = '-' + numStr;
-
-        /* ── re-attach prefix / suffix based on txtMode ── */
-        if (txtMode === 'keep') {
-          /* Keep the original prefix and suffix, replace only the numeric body */
-          row[jNum] = parts.prefix.replace('-','') + numStr + parts.suffix;
-          /* Note: sign is already embedded in numStr; prefix may contain '-' so strip it there */
-        } else {
-          /* remove — output is the pure number string (or actual number when no thousands sep) */
-          if (thouMode === 'none') {
-            /* store as true number so Excel treats it numerically */
-            row[jNum] = parseFloat((parts.sign || '') + formatted);
-          } else {
-            row[jNum] = numStr;
-          }
+          /* no thousands sep → store as actual number so Excel keeps it numeric */
+          row[jNum] = parseFloat(formatted);
         }
       });
     }
