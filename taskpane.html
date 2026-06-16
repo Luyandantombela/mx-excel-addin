@@ -436,11 +436,11 @@ function analyseData() {
       var dformats = {};
       var parseable = 0;
       colVals.forEach(function(v){
-        var f = detectDateFormat(String(v));
+        var f = detectDateFormat(v); /* pass raw value — handles numeric serials */
         dformats[f] = (dformats[f] || 0) + 1;
         if (f !== 'unknown') parseable++;
       });
-      /* Flag if: mixed formats, OR any value is unparseable, OR there are parseable dates (always offer reformat) */
+      /* Always offer date reformatting if any value is parseable */
       if (parseable > 0) {
         fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'date', issueCount: colVals.length, formats: dformats };
       }
@@ -453,20 +453,9 @@ function analyseData() {
         decimalCounts[dp] = (decimalCounts[dp] || 0) + 1;
       });
       var hasTextChars = colVals.some(function(v){ return /[^\d.\-,\s]/.test(String(v)); });
-      /* Always flag number columns so user can always apply formatting */
+      /* Always offer number formatting */
       fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'number', issueCount: colVals.length, decimalCounts: decimalCounts, hasTextChars: hasTextChars };
     }
-  });
-
-  /* whitespace — columns with leading/trailing spaces in any cell */
-  var wsCols = {};
-  headers.forEach(function(h, j) {
-    var count = 0;
-    dataRows.forEach(function(row) {
-      var v = row[j];
-      if (typeof v === 'string' && v !== '' && v !== v.trim()) count++;
-    });
-    if (count) wsCols[j] = { header: h || ('Col '+(j+1)), count: count };
   });
 
   /* bad emails */
@@ -482,11 +471,9 @@ function analyseData() {
     });
   });
 
-  issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, wsCols: wsCols, badEmails: badEmails };
+  issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, badEmails: badEmails };
   fmtColKeys = Object.keys(fmtCols);
-  issues.wsColKeys = Object.keys(wsCols);
-
-  var total = Object.keys(blankCols).length + dupes.length + fmtColKeys.length + issues.wsColKeys.length + badEmails.length;
+  var total = Object.keys(blankCols).length + dupes.length + fmtColKeys.length + badEmails.length;
   document.getElementById('issues-sub').textContent = 'Step 2 of 2 — ' + total + ' issue' + (total!==1?'s':'') + ' found';
 }
 
@@ -571,11 +558,7 @@ function buildFmtRow(j, col) {
     '<div class="tdot dot-' + col.type + '"></div>' +
     '<div style="flex:1;min-width:0">' +
       '<div class="fmt-col-name">' + col.header + '</div>' +
-      '<div class="fmt-col-type">' + col.type + ' · ' + (col.manual ? 'manually added' : (
-        col.issueType === 'date' && col.formats
-          ? (Object.keys(col.formats).filter(function(f){return f!=='unknown';}).join(', ') || 'mixed formats') + ' found'
-          : col.issueCount + ' value' + (col.issueCount!==1?'s':'') + ' affected'
-      )) + '</div>' +
+      '<div class="fmt-col-type">' + col.type + ' · ' + (col.manual ? 'manually added' : (col.issueCount + ' value' + (col.issueCount!==1?'s':'') + ' affected')) + '</div>' +
     '</div>' +
     controlsHtml;
   return row;
@@ -603,54 +586,69 @@ function updateBadge(id, count) {
   var badge = hdr.querySelector('.badge');
   if (badge) badge.textContent = count;
 }
-/* ── tryParseDate: normalises any recognisable date string to YYYY/MM/DD ── */
-function tryParseDate(v) {
-  if (!v) return v;
-  var s = String(v).trim();
-  /* YYYY-MM-DD or YYYY/MM/DD (with 1- or 2-digit month/day) */
-  var iso = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-  if (iso) return iso[1] + '/' + String(iso[2]).padStart(2,'0') + '/' + String(iso[3]).padStart(2,'0');
-  /* DD/MM/YYYY or MM/DD/YYYY — treat first part as day (matches web app default) */
-  var dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-  if (dmy) return dmy[3] + '/' + String(dmy[2]).padStart(2,'0') + '/' + String(dmy[1]).padStart(2,'0');
-  /* Compact DDMMYYYY */
-  var num = s.match(/^(\d{2})(\d{2})(\d{4})$/);
-  if (num) return num[3] + '/' + num[2] + '/' + num[1];
-  /* Fallback — try native Date (handles "Jan 5, 2024", "2024-01-05T00:00:00" etc.) */
-  var d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    return d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
-  }
-  return v; /* unrecognised — return original */
+/* ── Excel serial number to YYYY/MM/DD ── */
+function excelSerialToDate(serial) {
+  var n = Math.floor(serial);
+  if (n < 1 || n > 2958465) return null;
+  if (n > 59) n -= 1; /* Excel 1900 leap-year bug */
+  var d = new Date(Date.UTC(1899, 11, 31) + n * 86400000);
+  return d.getUTCFullYear() + '/' + String(d.getUTCMonth()+1).padStart(2,'0') + '/' + String(d.getUTCDate()).padStart(2,'0');
 }
 
-function detectDateFormat(s) {
-  if (!s) return 'unknown';
-  s = String(s).trim();
-  if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(s)) return 'YYYY/MM/DD';
-  if (/^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(s)) {
-    var parts = s.split(/[-\/]/);
-    if (parseInt(parts[0]) > 12) return 'DD/MM/YYYY';
-    return 'MM/DD/YYYY';
+/* ── tryParseDate: any date value → canonical YYYY/MM/DD string ── */
+function tryParseDate(v) {
+  if (v === null || v === undefined || v === '') return v;
+  /* Office JS returns date cells as plain JS numbers (Excel serials) */
+  if (typeof v === 'number') {
+    var ser = excelSerialToDate(v);
+    return ser || String(v);
   }
-  /* Anything else tryParseDate can handle */
-  var parsed = tryParseDate(s);
-  if (parsed !== s) return 'YYYY/MM/DD'; /* successfully parsed */
+  var s = String(v).trim();
+  if (!s) return v;
+  /* 5-digit integer in plausible serial range (~2000-2099) */
+  if (/^\d{5}$/.test(s)) {
+    var n = parseInt(s, 10);
+    if (n >= 36526 && n <= 73050) { var ser2 = excelSerialToDate(n); if (ser2) return ser2; }
+  }
+  /* YYYY-MM-DD or YYYY/MM/DD */
+  var iso = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if (iso) return iso[1]+'/'+String(iso[2]).padStart(2,'0')+'/'+String(iso[3]).padStart(2,'0');
+  /* D/M/YYYY or DD/MM/YYYY — treat as day-first (DD/MM convention) */
+  var dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (dmy) return dmy[3]+'/'+String(dmy[2]).padStart(2,'0')+'/'+String(dmy[1]).padStart(2,'0');
+  /* Compact DDMMYYYY */
+  var compact = s.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (compact) return compact[3]+'/'+compact[2]+'/'+compact[1];
+  /* Fallback to native Date (handles ISO timestamps, "Jan 5, 2026", etc.) */
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
+  return v;
+}
+
+function detectDateFormat(v) {
+  if (v === null || v === undefined || v === '') return 'unknown';
+  if (typeof v === 'number') return 'serial';
+  var s = String(v).trim();
+  if (/^\d{5}$/.test(s)) { var n=parseInt(s,10); if(n>=36526&&n<=73050) return 'serial'; }
+  if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(s)) return 'YYYY/MM/DD';
+  if (/^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(s)) return parseInt(s.split(/[-\/]/)[0])>12 ? 'DD/MM/YYYY' : 'ambiguous';
+  var parsed = tryParseDate(v);
+  if (parsed !== v) return 'other';
   return 'unknown';
 }
 
-function normalizeDate(dateStr, targetFormat) {
-  if (!dateStr) return dateStr;
-  /* First normalise to canonical YYYY/MM/DD via tryParseDate */
-  var canonical = tryParseDate(String(dateStr).trim());
-  var m = canonical.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-  if (!m) return dateStr; /* could not parse — keep original */
-  var year = m[1], month = m[2], day = m[3];
-  if (targetFormat === 'YYYY/MM/DD') return year+'/'+month+'/'+day;
-  if (targetFormat === 'YYYY-MM-DD') return year+'-'+month+'-'+day;
-  if (targetFormat === 'DD/MM/YYYY') return day+'/'+month+'/'+year;
-  if (targetFormat === 'MM/DD/YYYY') return month+'/'+day+'/'+year;
-  return year+'/'+month+'/'+day;
+function normalizeDate(v, targetFormat) {
+  if (v === null || v === undefined || v === '') return v;
+  var canonical = tryParseDate(v);
+  if (canonical === v) return v; /* unrecognised */
+  var m = String(canonical).match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!m) return v;
+  var yr=m[1], mo=m[2], dy=m[3];
+  if (targetFormat==='YYYY/MM/DD') return yr+'/'+mo+'/'+dy;
+  if (targetFormat==='YYYY-MM-DD') return yr+'-'+mo+'-'+dy;
+  if (targetFormat==='DD/MM/YYYY') return dy+'/'+mo+'/'+yr;
+  if (targetFormat==='MM/DD/YYYY') return mo+'/'+dy+'/'+yr;
+  return yr+'/'+mo+'/'+dy;
 }
 
 /* ════ RENDER ISSUES ════ */
@@ -751,36 +749,6 @@ function renderIssues() {
     updateBadge('fmt', fmtColKeys.length);
   });
 
-  /* ── Whitespace — columns with leading/trailing spaces, checkbox per column ── */
-  var wsAcc = makeAcc('ws', 'ti-letter-spacing', 'var(--purple)', 'Whitespace Found', issues.wsColKeys.length, 'b-blue');
-  var wsBody = wsAcc.querySelector('.acc-body');
-  var wsInner = document.createElement('div');
-  wsInner.style.padding = '4px 0';
-  if (!issues.wsColKeys.length) {
-    wsInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:12px 14px">No whitespace issues found</div>';
-  } else {
-    var wsSelAll = document.createElement('label');
-    wsSelAll.className = 'sel-all-row';
-    wsSelAll.innerHTML = '<input type="checkbox" checked> Select all (' + issues.wsColKeys.length + ')';
-    wsSelAll.querySelector('input').addEventListener('change', function(e) {
-      wsInner.querySelectorAll('.ws-cb').forEach(function(cb){ cb.checked = e.target.checked; });
-    });
-    wsInner.appendChild(wsSelAll);
-    issues.wsColKeys.forEach(function(j) {
-      var col = issues.wsCols[j];
-      var row = document.createElement('div');
-      row.className = 'fmt-col-row';
-      row.innerHTML =
-        '<input type="checkbox" class="ws-cb" data-col="' + j + '" checked style="accent-color:var(--acc);width:14px;height:14px;flex-shrink:0;cursor:pointer">' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="fmt-col-name">' + col.header + '</div>' +
-          '<div class="fmt-col-type">' + col.count + ' cell' + (col.count!==1?'s':'') + ' with extra spaces</div>' +
-        '</div>';
-      wsInner.appendChild(row);
-    });
-  }
-  wsBody.appendChild(wsInner);
-  body.appendChild(wsAcc);
 
   /* ── Incorrect emails — exact pattern: replace-all row + original->fixed error-items ── */
   var emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect Emails', be.length, 'b-amber');
@@ -898,7 +866,7 @@ function applyClean() {
       var targetFmt = sel2 ? sel2.value : 'YYYY/MM/DD';
       dataRows.forEach(function(row) {
         var v = row[jNum];
-        if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(String(v), targetFmt);
+        if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(v, targetFmt);
       });
     } else if (col.issueType === 'number') {
       var decSel = document.querySelector('.fmt-control[data-col="' + j + '"][data-mode="decimals"]');
@@ -907,63 +875,30 @@ function applyClean() {
       var decMode = decSel ? decSel.value : 'keep';
       var txtMode = txtSel ? txtSel.value : 'keep';
       var thouMode = thouSel ? thouSel.value : 'none';
-
-      /* If everything is "keep" / "none" — do nothing */
-      if (decMode === 'keep' && txtMode === 'keep' && thouMode === 'none') return;
-
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
-        var s = String(v).trim();
-
-        /* Strip non-numeric chars (currency symbols, letters, etc.) if user asked */
+        var s = String(v);
         if (txtMode === 'remove') s = s.replace(/[^0-9.\-]/g, '');
-
-        /* Remove existing thousands separators before parsing */
-        var cleaned = s.replace(/[,\s]/g, '');
-        var num = parseFloat(cleaned);
-        if (isNaN(num)) return; /* unparseable — leave as-is */
-
-        /* Decimals */
-        var formatted;
-        if (decMode === 'keep') {
-          /* Preserve original decimal digits */
-          var origDec = cleaned.includes('.') ? cleaned.split('.')[1].length : 0;
-          formatted = num.toFixed(origDec);
-        } else {
-          formatted = num.toFixed(+decMode);
+        var num = parseFloat(s.replace(/[,\s]/g, ''));
+        if (!isNaN(num)) {
+          var fixed = decMode !== 'keep' ? num.toFixed(+decMode) : String(num);
+          var parts = fixed.split('.');
+          var intPart = parts[0], decPart = parts[1];
+          if (thouMode !== 'none') {
+            var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
+            var neg = intPart.charAt(0) === '-';
+            if (neg) intPart = intPart.slice(1);
+            intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
+            if (neg) intPart = '-' + intPart;
+          }
+          s = decPart !== undefined ? intPart + '.' + decPart : intPart;
         }
-
-        /* Thousands separator — applied only to the integer part */
-        if (thouMode !== 'none') {
-          var parts = formatted.split('.');
-          var intPart = parts[0];
-          var decPart = parts[1]; /* may be undefined */
-          var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
-          var neg = intPart.charAt(0) === '-';
-          if (neg) intPart = intPart.slice(1);
-          intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
-          if (neg) intPart = '-' + intPart;
-          /* When using period as thousands sep, we must use comma as decimal sep to avoid ambiguity */
-          var decSep = thouMode === 'period' ? ',' : '.';
-          formatted = decPart !== undefined ? intPart + decSep + decPart : intPart;
-          row[jNum] = formatted; /* store as string when thousands sep applied */
-        } else {
-          /* No thousands separator — store as actual number so Excel treats it as numeric */
-          row[jNum] = parseFloat(formatted);
-        }
+        row[jNum] = s;
       });
     }
   });
 
-  /* 3b. whitespace — trim checked columns */
-  document.querySelectorAll('.ws-cb:checked').forEach(function(cb) {
-    var j = +cb.dataset.col;
-    dataRows.forEach(function(row) {
-      var v = row[j];
-      if (typeof v === 'string') row[j] = v.trim();
-    });
-  });
 
   /* 4. fix emails */
   document.querySelectorAll('.email-input').forEach(function(inp) {
