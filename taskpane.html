@@ -184,7 +184,39 @@ html,body{
 .email-input{background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t1);font-size:11px;padding:5px 9px;font-family:var(--mono);width:130px;flex-shrink:0;outline:none}
 .email-input:focus{border-color:var(--acc)}
 
-/* spinner */
+/* ══ inputs/selects — exact from original site ══ */
+.p-inp,.p-sel{
+  width:100%;background:var(--bg);border:1px solid var(--b2);border-radius:6px;
+  padding:7px 10px;font-size:12px;color:var(--t1);font-family:'IBM Plex Sans',sans-serif;
+  outline:none;transition:border-color .15s;
+}
+.p-inp:focus,.p-sel:focus{border-color:var(--acc)}
+.p-inp::placeholder{color:var(--t4)}
+.p-sel{cursor:pointer}.p-sel option{background:var(--s2)}
+
+/* blank column row — exact grid from original site */
+.blank-col-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;
+  padding:6px 0;border-bottom:1px solid var(--b1);
+}
+.blank-col-row:last-child{border-bottom:none}
+.blank-col-name{font-size:11px;color:var(--t2);font-weight:500}
+
+/* error item — original/fixed pattern, exact from original site */
+.error-item{
+  display:grid;grid-template-columns:1fr 24px 1fr;gap:8px;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--b1);
+}
+.error-item:last-child{border-bottom:none}
+.error-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:inline-block;padding:2px 6px;border-radius:3px;margin-bottom:4px}
+.error-left{background:var(--purple-bg);color:var(--purple);border:1px solid #3d1566}
+.error-right{background:var(--green-bg);color:var(--green);border:1px solid #1a4a2e}
+.error-arrow{font-size:11px;color:var(--t4);text-align:center}
+.error-orig{font-size:11px;color:var(--t2);font-family:var(--mono)}
+.error-col{font-size:9px;color:var(--t4)}
+
+.replace-all-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px dashed var(--b1);margin-bottom:8px}
+.replace-all-label{font-size:10px;color:var(--t4);white-space:nowrap;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin{animation:spin .8s linear infinite;display:inline-block}
 
@@ -422,12 +454,14 @@ function renderIssues() {
   body.innerHTML = '';
   var bc = issues.blankCols, dupes = issues.dupes, fc = issues.fmtCols, be = issues.badEmails;
 
-  /* ── Blank cells ── */
+  /* ── Blank cells — exact pattern: "Name (x6)" + input, 2-col grid ── */
   var blankTotal = Object.values(bc).reduce(function(s,c){ return s+c.count; }, 0);
-  var blanksAcc = makeAcc('blanks', 'ti-circle-minus', 'var(--red)', 'Blank cells', blankTotal, 'b-red');
+  var blanksAcc = makeAcc('blanks', 'ti-circle-minus', 'var(--red)', 'Blanks', blankTotal, 'b-red');
   var blanksBody = blanksAcc.querySelector('.acc-body');
+  var blanksInner = document.createElement('div');
+  blanksInner.style.padding = '12px 14px';
   if (!blankTotal) {
-    blanksBody.innerHTML = '<div class="acc-empty">No blank cells found</div>';
+    blanksInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:8px 0">No blank cells found</div>';
   } else {
     Object.entries(bc).forEach(function(entry) {
       var j = entry[0], col = entry[1];
@@ -435,15 +469,12 @@ function renderIssues() {
       var row = document.createElement('div');
       row.className = 'blank-col-row';
       row.innerHTML =
-        '<div class="tdot dot-' + col.type + '"></div>' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="blank-col-name">' + col.header + '</div>' +
-          '<div class="blank-col-meta">' + col.count + ' blank cell' + (col.count!==1?'s':'') + ' · ' + col.type + '</div>' +
-        '</div>' +
-        '<input class="blank-input" type="text" value="' + def + '" data-col="' + j + '" placeholder="Default value">';
-      blanksBody.appendChild(row);
+        '<div class="blank-col-name">' + col.header + ' <span style="color:var(--t4)">(x' + col.count + ')</span></div>' +
+        '<input class="p-inp" style="font-size:11px" value="' + def + '" data-col="' + j + '">';
+      blanksInner.appendChild(row);
     });
   }
+  blanksBody.appendChild(blanksInner);
   body.appendChild(blanksAcc);
 
   /* ── Duplicate rows ── */
@@ -472,87 +503,88 @@ function renderIssues() {
   }
   body.appendChild(dupesAcc);
 
-  /* ── Formatting ── */
-  var fmtAcc = makeAcc('fmt', 'ti-text-spellcheck', 'var(--acc)', 'Formatting', fmtColKeys.length, 'b-blue');
+  /* ── Formatting — exact pattern: original -> fixed error-items ── */
+  var fmtIssueList = [];
+  fmtColKeys.forEach(function(j) {
+    var col = fc[j];
+    var dataRows = sel.values.slice(1);
+    dataRows.forEach(function(row, i) {
+      var v = row[j];
+      if (typeof v === 'string' && v !== '' && v !== v.trim()) {
+        fmtIssueList.push({ colIdx: j, col: col.header, rowIndex: i+2, original: v, suggested: v.trim() });
+      }
+    });
+  });
+
+  var fmtAcc = makeAcc('fmt', 'ti-text-spellcheck', 'var(--acc)', 'Formatting Inconsistencies', fmtIssueList.length, 'b-blue');
   var fmtBody = fmtAcc.querySelector('.acc-body');
-  if (!fmtColKeys.length) {
-    fmtBody.innerHTML = '<div class="acc-empty">No text/email columns to format</div>';
+  var fmtInner = document.createElement('div');
+  fmtInner.style.padding = '12px 14px';
+  if (!fmtIssueList.length) {
+    fmtInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:8px 0">No formatting inconsistencies found</div>';
   } else {
-    fmtColKeys.forEach(function(j) {
-      var col = fc[j];
+    fmtIssueList.forEach(function(e, idx) {
       var row = document.createElement('div');
-      row.className = 'fmt-col-row';
+      row.className = 'error-item';
       row.innerHTML =
-        '<div class="tdot dot-' + col.type + '"></div>' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="fmt-col-name">' + col.header + '</div>' +
-          '<div class="fmt-col-type">' + col.type + ' · ' + col.issueCount + ' whitespace issue' + (col.issueCount!==1?'s':'') + '</div>' +
+        '<div>' +
+          '<div class="error-label error-left">Original</div>' +
+          '<div class="error-orig">' + e.original + '</div>' +
+          '<div class="error-col">in column "' + e.col + '"</div>' +
         '</div>' +
-        '<select class="fmt-select" data-col="' + j + '">' +
-          '<option value="none">No change</option>' +
-          '<option value="trim">Trim spaces</option>' +
-          '<option value="lower">lowercase</option>' +
-          '<option value="upper">UPPERCASE</option>' +
-          '<option value="title">Title Case</option>' +
-          (col.type==='email'?'<option value="email">Fix email</option>':'') +
-        '</select>';
-      if (col.issueCount > 0) row.querySelector('select').value = 'trim';
-      fmtBody.appendChild(row);
+        '<span class="error-arrow"><i class="ti ti-arrow-right"></i></span>' +
+        '<div>' +
+          '<div class="error-label error-right">Fixed</div>' +
+          '<input class="p-inp" style="font-size:11px" value="' + e.suggested + '" data-fmt-idx="' + idx + '">' +
+        '</div>';
+      fmtInner.appendChild(row);
     });
-
-    /* add column button */
-    var addRow = document.createElement('div');
-    addRow.className = 'add-col-row';
-    var addBtn = document.createElement('button');
-    addBtn.className = 'add-col-btn';
-    addBtn.innerHTML = '<i class="ti ti-plus"></i> Add another column';
-    addBtn.addEventListener('click', function() {
-      var headers = sel.values[0];
-      var already = new Set(fmtColKeys.map(Number));
-      var available = headers.map(function(h,i){ return {h:h,i:i}; }).filter(function(x){ return !already.has(x.i); });
-      if (!available.length) { showToast('All columns already listed.', false); return; }
-      var next = available[0];
-      var col = { header: next.h || ('Col ' + (next.i+1)), type: colTypes[next.i], issueCount: 0 };
-      issues.fmtCols[next.i] = col;
-      fmtColKeys.push(String(next.i));
-      var newRow = document.createElement('div');
-      newRow.className = 'fmt-col-row';
-      newRow.innerHTML =
-        '<div class="tdot dot-' + col.type + '"></div>' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="fmt-col-name">' + col.header + '</div>' +
-          '<div class="fmt-col-type">' + col.type + ' · manually added</div>' +
-        '</div>' +
-        '<select class="fmt-select" data-col="' + next.i + '">' +
-          '<option value="none">No change</option>' +
-          '<option value="trim">Trim spaces</option>' +
-          '<option value="lower">lowercase</option>' +
-          '<option value="upper">UPPERCASE</option>' +
-          '<option value="title">Title Case</option>' +
-        '</select>';
-      fmtBody.insertBefore(newRow, addRow);
-    });
-    addRow.appendChild(addBtn);
-    fmtBody.appendChild(addRow);
   }
+  fmtBody.appendChild(fmtInner);
   body.appendChild(fmtAcc);
+  issues.fmtIssueList = fmtIssueList;
 
-  /* ── Incorrect emails ── */
-  var emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect emails', be.length, 'b-amber');
+  /* ── Incorrect emails — exact pattern: replace-all row + original->fixed error-items ── */
+  var emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect Emails', be.length, 'b-amber');
   var emailBody = emailAcc.querySelector('.acc-body');
+  var emailInner = document.createElement('div');
+  emailInner.style.padding = '12px 14px';
+
   if (!be.length) {
-    emailBody.innerHTML = '<div class="acc-empty">No invalid emails found</div>';
+    emailInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:8px 0">No invalid emails found</div>';
   } else {
+    var replaceRow = document.createElement('div');
+    replaceRow.className = 'replace-all-row';
+    replaceRow.innerHTML =
+      '<span class="replace-all-label">Replace all invalid with:</span>' +
+      '<input class="p-inp" id="email-replace-all" value="x@gmail.com" style="flex:1;font-size:11px">' +
+      '<button class="add-col-btn" id="email-replace-btn" style="white-space:nowrap">Apply</button>';
+    emailInner.appendChild(replaceRow);
+
     be.forEach(function(e, idx) {
       var row = document.createElement('div');
-      row.className = 'email-row';
+      row.className = 'error-item';
       row.innerHTML =
-        '<span class="email-rnum">Row ' + e.rowIndex + '</span>' +
-        '<span class="email-val">' + e.value + '</span>' +
-        '<input class="email-input" type="text" value="x@gmail.com" data-idx="' + idx + '" placeholder="Replacement">';
-      emailBody.appendChild(row);
+        '<div>' +
+          '<div class="error-label error-left">Invalid</div>' +
+          '<div class="error-orig">' + e.value + '</div>' +
+          '<div class="error-col">in column "' + e.col + '"</div>' +
+        '</div>' +
+        '<span class="error-arrow"><i class="ti ti-arrow-right"></i></span>' +
+        '<div>' +
+          '<div class="error-label error-right">Fixed</div>' +
+          '<input class="p-inp email-input" style="font-size:11px" value="x@gmail.com" data-idx="' + idx + '" placeholder="Enter valid email">' +
+        '</div>';
+      emailInner.appendChild(row);
+    });
+
+    replaceRow.querySelector('#email-replace-btn').addEventListener('click', function() {
+      var val = document.getElementById('email-replace-all').value || 'x@gmail.com';
+      emailInner.querySelectorAll('.email-input').forEach(function(inp){ inp.value = val; });
+      showToast('Applied to all invalid emails', false);
     });
   }
+  emailBody.appendChild(emailInner);
   body.appendChild(emailAcc);
 }
 
@@ -596,7 +628,7 @@ function applyClean() {
   /* 1. fill blanks */
   Object.entries(issues.blankCols).forEach(function(entry) {
     var j = entry[0];
-    var inp = document.querySelector('.blank-input[data-col="' + j + '"]');
+    var inp = document.querySelector('.blank-col-row .p-inp[data-col="' + j + '"]');
     var fillVal = inp ? inp.value : defaultVal(entry[1].type);
     dataRows.forEach(function(row) {
       if (row[j] === null || row[j] === undefined || row[j].toString().trim() === '') row[j] = fillVal;
@@ -610,19 +642,13 @@ function applyClean() {
   });
   dataRows = dataRows.filter(function(_, i){ return !dupeIdxToRemove.has(i); });
 
-  /* 3. formatting */
-  document.querySelectorAll('.fmt-select').forEach(function(s) {
-    var j = +s.dataset.col, mode = s.value;
-    if (mode === 'none') return;
-    dataRows.forEach(function(row) {
-      var v = row[j];
-      if (typeof v !== 'string' || v === '') return;
-      if (mode === 'trim')  row[j] = v.trim();
-      if (mode === 'lower') row[j] = v.trim().toLowerCase();
-      if (mode === 'upper') row[j] = v.trim().toUpperCase();
-      if (mode === 'title') row[j] = v.trim().replace(/\b\w/g, function(c){ return c.toUpperCase(); });
-      if (mode === 'email') row[j] = v.trim().toLowerCase();
-    });
+  /* 3. formatting — apply each original->fixed pair by row+col */
+  document.querySelectorAll('.p-inp[data-fmt-idx]').forEach(function(inp) {
+    var idx = +inp.dataset.fmtIdx;
+    var item = issues.fmtIssueList[idx];
+    if (!item) return;
+    var dataIdx = item.rowIndex - 2;
+    if (dataRows[dataIdx] !== undefined) dataRows[dataIdx][item.colIdx] = inp.value;
   });
 
   /* 4. fix emails */
