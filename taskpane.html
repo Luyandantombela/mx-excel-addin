@@ -946,13 +946,12 @@ function applyClean() {
           if (textCellsMode === 'blank') row[jNum] = '';
           return;
         }
-        /* For 'keep' mode: use THIS cell's own dp, not a column-wide max */
-        var cellDp = decMode === 'keep' ? parsed.dp : resolvedDp;
-        row[jNum] = parseFloat(parsed.num.toFixed(cellDp));
-        /* When 'keep', update the cell format to match its own dp */
         if (decMode === 'keep') {
-          /* We use 'General' format so Excel shows each number naturally */
-          colNumFormats[jNum] = { fmt: 'General', col: jNum };
+          /* Store the raw parsed number — no toFixed, no rounding.
+             'General' format lets Excel display each value naturally. */
+          row[jNum] = parsed.num;
+        } else {
+          row[jNum] = parseFloat(parsed.num.toFixed(resolvedDp));
         }
       });
     }
