@@ -887,6 +887,9 @@ function applyClean() {
   dataRows = dataRows.filter(function(_, i){ return !dupeIdxToRemove.has(i); });
 
   /* 3. formatting — apply per-column control based on issue type */
+  /* collect Excel number format strings to apply after writing */
+  var colNumFormats = {};
+
   Object.keys(issues.fmtCols).forEach(function(j) {
     var col = issues.fmtCols[j];
     var jNum = +j;
@@ -913,7 +916,6 @@ function applyClean() {
       /* ── resolve decimal places ── */
       var resolvedDp;
       if (decMode === 'keep') {
-        /* scan column to find the most decimal places used */
         var maxDp = 0;
         dataRows.forEach(function(row) {
           var v = row[jNum];
@@ -923,42 +925,31 @@ function applyClean() {
         });
         resolvedDp = maxDp;
       } else {
-        resolvedDp = +decMode; /* explicit choice: 0 / 1 / 2 / 3 */
+        resolvedDp = +decMode;
       }
+
+      /* ── build Excel numberFormat string so the cell format matches exactly ── */
+      var decPart = resolvedDp > 0 ? '.' + '0'.repeat(resolvedDp) : '';
+      var numFmtStr;
+      if (thouMode === 'comma')  numFmtStr = '#,##0' + decPart;
+      else if (thouMode === 'space')  numFmtStr = '# ##0' + decPart;   /* space-sep */
+      else if (thouMode === 'period') numFmtStr = '#.##0' + (resolvedDp > 0 ? ',' + '0'.repeat(resolvedDp) : '');
+      else numFmtStr = '0' + decPart; /* no thousands sep */
+      /* store so we can apply after writing values */
+      colNumFormats[jNum] = { fmt: numFmtStr, col: jNum };
 
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v).trim();
-
-        /* Strip currency symbols, commas used as thousand seps etc. but keep digits/dot/minus */
         var cleaned = s.replace(/[^0-9.\-]/g, '');
         var num = parseFloat(cleaned);
-
         if (isNaN(num)) {
-          /* Cell is text-only (e.g. 'N/A', '--') — apply user choice */
           if (textCellsMode === 'blank') row[jNum] = '';
-          /* else 'keep' — leave untouched */
           return;
         }
-
-        /* ── format the number ── */
-        var formatted = num.toFixed(resolvedDp);
-
-        if (thouMode !== 'none') {
-          var fp = formatted.split('.');
-          var intPart = fp[0], decPart = fp[1];
-          var sepChar = thouMode === 'comma' ? ',' : (thouMode === 'space' ? ' ' : '.');
-          var neg = intPart.charAt(0) === '-';
-          if (neg) intPart = intPart.slice(1);
-          intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
-          if (neg) intPart = '-' + intPart;
-          var decSepChar = thouMode === 'period' ? ',' : '.';
-          row[jNum] = decPart !== undefined ? intPart + decSepChar + decPart : intPart;
-        } else {
-          /* store as real JS number — Excel treats it as numeric */
-          row[jNum] = parseFloat(formatted);
-        }
+        /* store raw number — numberFormat on the cell handles display */
+        row[jNum] = parseFloat(num.toFixed(resolvedDp));
       });
     }
   });
@@ -982,8 +973,16 @@ function applyClean() {
       var name = 'Cleaned Data', n = 1;
       while (existing.includes(name)) name = 'Cleaned Data ' + (n++);
       var ns = sheets.add(name);
-      ns.getRangeByIndexes(0, 0, cleanedData.length, cleanedData[0].length).values = cleanedData;
+      var dataRange = ns.getRangeByIndexes(0, 0, cleanedData.length, cleanedData[0].length);
+      dataRange.values = cleanedData;
       ns.getRangeByIndexes(0, 0, 1, cleanedData[0].length).format.font.bold = true;
+      /* Apply number formats — overrides any inherited cell format */
+      Object.keys(colNumFormats).forEach(function(ci) {
+        var nf = colNumFormats[ci];
+        /* rows 1..N (skip header row 0) */
+        var colRange = ns.getRangeByIndexes(1, nf.col, cleanedData.length - 1, 1);
+        colRange.numberFormat = [[nf.fmt]];
+      });
       ns.activate();
       return ctx.sync();
     });
