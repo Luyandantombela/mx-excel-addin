@@ -485,15 +485,16 @@ function analyseData() {
       }
     } else if (type === 'number') {
       var decimalCounts = {};
+      /* hasNonNumeric: cell has letters/symbols mixed with digits (e.g. R77883, me 3782,23) */
+      var hasNonNumeric = false;
       colVals.forEach(function(v){
-        var s = String(v).replace(/[^0-9.\-]/g, '');
-        var parts = s.split('.');
-        var dp = parts.length > 1 ? parts[1].length : 0;
+        var s = String(v);
+        var parsed = smartParseNumber(s);
+        var dp = isNaN(parsed.num) ? 0 : parsed.dp;
         decimalCounts[dp] = (decimalCounts[dp] || 0) + 1;
+        /* non-numeric = has letters or currency symbols mixed with digits */
+        if (!isNaN(parsed.num) && /[^\d.,\-\s]/.test(s)) hasNonNumeric = true;
       });
-      /* hasNonNumeric: any character that isn't a digit, dot, minus, comma, or space */
-      var hasNonNumeric = colVals.some(function(v){ return /[^\d.\-,\s]/.test(String(v)); });
-      /* Always offer number formatting */
       fmtCols[j] = { header: h || ('Col '+(j+1)), type: type, issueType: 'number', issueCount: colVals.length, decimalCounts: decimalCounts, hasNonNumeric: hasNonNumeric };
     }
   });
@@ -598,7 +599,11 @@ function buildFmtRow(j, col) {
           '</select>' +
         '</div>' +
         (col.hasNonNumeric
-          ? '<div style="display:flex;gap:6px;align-items:center;margin-top:2px">' +
+          ? '<div style="font-size:10px;color:var(--warning,#f59e0b);padding:4px 2px;line-height:1.5">' +
+              '<i class="ti ti-info-circle" style="margin-right:3px"></i>' +
+              'Some cells mix numbers with non-numeric characters (e.g. <b>R77883</b>). These characters will be stripped automatically.' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;align-items:center">' +
               '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Text cells:</span>' +
               '<select class="p-sel fmt-control" style="font-size:11px;flex:1;padding:4px 6px"' +
                 ' onchange="issues.fmtCols[' + j + '].chosenTextCells=this.value">' +
@@ -914,42 +919,41 @@ function applyClean() {
       var textCellsMode = col.chosenTextCells || 'keep';
 
       /* ── resolve decimal places ── */
-      var resolvedDp;
-      if (decMode === 'keep') {
-        var maxDp = 0;
-        dataRows.forEach(function(row) {
-          var v = row[jNum];
-          if (v === '' || v === null || v === undefined) return;
-          var cl = String(v).replace(/[^0-9.\-]/g, '');
-          if (cl.indexOf('.') >= 0) maxDp = Math.max(maxDp, cl.split('.')[1].length);
-        });
-        resolvedDp = maxDp;
-      } else {
-        resolvedDp = +decMode;
-      }
+      /* 'keep' = preserve each cell's own dp individually (handled per-cell below) */
+      var resolvedDp = decMode === 'keep' ? 0 : +decMode;
 
       /* ── build Excel numberFormat string so the cell format matches exactly ── */
-      var decPart = resolvedDp > 0 ? '.' + '0'.repeat(resolvedDp) : '';
+      /* For 'keep' mode we use General so each cell shows its natural precision */
       var numFmtStr;
-      if (thouMode === 'comma')  numFmtStr = '#,##0' + decPart;
-      else if (thouMode === 'space')  numFmtStr = '# ##0' + decPart;   /* space-sep */
-      else if (thouMode === 'period') numFmtStr = '#.##0' + (resolvedDp > 0 ? ',' + '0'.repeat(resolvedDp) : '');
-      else numFmtStr = '0' + decPart; /* no thousands sep */
-      /* store so we can apply after writing values */
+      if (decMode === 'keep') {
+        numFmtStr = 'General';
+      } else {
+        var decPart = resolvedDp > 0 ? '.' + '0'.repeat(resolvedDp) : '';
+        if (thouMode === 'comma')        numFmtStr = '#,##0' + decPart;
+        else if (thouMode === 'space')   numFmtStr = '# ##0' + decPart;
+        else if (thouMode === 'period')  numFmtStr = '#.##0' + (resolvedDp > 0 ? ',' + '0'.repeat(resolvedDp) : '');
+        else                             numFmtStr = '0' + decPart;
+      }
       colNumFormats[jNum] = { fmt: numFmtStr, col: jNum };
 
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v).trim();
-        var cleaned = s.replace(/[^0-9.\-]/g, '');
-        var num = parseFloat(cleaned);
-        if (isNaN(num)) {
+        var parsed = smartParseNumber(s);
+        if (isNaN(parsed.num)) {
+          /* pure text cell — no number found at all */
           if (textCellsMode === 'blank') row[jNum] = '';
           return;
         }
-        /* store raw number — numberFormat on the cell handles display */
-        row[jNum] = parseFloat(num.toFixed(resolvedDp));
+        /* For 'keep' mode: use THIS cell's own dp, not a column-wide max */
+        var cellDp = decMode === 'keep' ? parsed.dp : resolvedDp;
+        row[jNum] = parseFloat(parsed.num.toFixed(cellDp));
+        /* When 'keep', update the cell format to match its own dp */
+        if (decMode === 'keep') {
+          /* We use 'General' format so Excel shows each number naturally */
+          colNumFormats[jNum] = { fmt: 'General', col: jNum };
+        }
       });
     }
   });
@@ -1347,6 +1351,74 @@ function writeNewSheet(baseName, data, onSuccess, onFail) {
   }).catch(function(e){ showToast(e.message,true); onFail(); });
 }
 
+
+/* ── Smart number parser ─────────────────────────────────────────────────
+   Handles: 3782,23  /  1.234,56  /  1,234.56  /  R77883  /  me 3782,23
+   Returns a JS float, or NaN if no number found.
+   Also returns the original decimal places count for "keep" mode.        */
+function smartParseNumber(raw) {
+  var s = String(raw).trim();
+  /* strip leading/trailing non-numeric noise (currency symbols, letters etc.) */
+  /* keep digits, dot, comma, minus */
+  var stripped = s.replace(/[^0-9.,\-]/g, '');
+  if (!stripped || stripped === '-') return { num: NaN, dp: 0 };
+
+  var dots   = (stripped.match(/\./g)  || []).length;
+  var commas = (stripped.match(/,/g) || []).length;
+
+  var normalized; /* will become a string with '.' as decimal sep, no thousands */
+
+  if (dots === 0 && commas === 0) {
+    /* plain integer */
+    normalized = stripped;
+  } else if (dots > 0 && commas === 0) {
+    if (dots === 1) {
+      /* single dot — could be decimal (1234.56) or thousands (1.000) */
+      var afterDot = stripped.split('.')[1];
+      /* if exactly 3 digits after dot AND value before is plausible thousands → thousands sep */
+      if (afterDot.length === 3 && stripped.indexOf('.') > 0) {
+        normalized = stripped.replace(/\./g, ''); /* remove thousands dot */
+      } else {
+        normalized = stripped; /* treat as decimal */
+      }
+    } else {
+      /* multiple dots → all are thousands seps (e.g. 1.000.000) */
+      normalized = stripped.replace(/\./g, '');
+    }
+  } else if (commas > 0 && dots === 0) {
+    if (commas === 1) {
+      /* single comma — could be decimal (3782,23) or thousands (1,000) */
+      var afterComma = stripped.split(',')[1];
+      if (afterComma.length === 3 && stripped.indexOf(',') > 0) {
+        normalized = stripped.replace(/,/g, ''); /* thousands comma */
+      } else {
+        /* treat as decimal — replace comma with dot */
+        normalized = stripped.replace(',', '.');
+      }
+    } else {
+      /* multiple commas → all thousands (1,000,000) */
+      normalized = stripped.replace(/,/g, '');
+    }
+  } else {
+    /* both dot and comma present — last one is decimal sep */
+    var lastDot   = stripped.lastIndexOf('.');
+    var lastComma = stripped.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      /* comma is decimal sep: 1.234,56 */
+      normalized = stripped.replace(/\./g, '').replace(',', '.');
+    } else {
+      /* dot is decimal sep: 1,234.56 */
+      normalized = stripped.replace(/,/g, '');
+    }
+  }
+
+  var num = parseFloat(normalized);
+  /* count original decimal places */
+  var dp = 0;
+  var dotIdx = normalized.indexOf('.');
+  if (dotIdx >= 0) dp = normalized.length - dotIdx - 1;
+  return { num: num, dp: dp };
+}
 
 /* ════ TOAST ════ */
 function showToast(msg, err) {
