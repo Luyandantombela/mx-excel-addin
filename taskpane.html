@@ -1647,7 +1647,7 @@ function addBulkCond(setId) {
 function bulkCondOps(type) {
   var ops = type === 'text'
     ? [['=','='],['!=','≠'],['contains','∋'],['starts','A…'],['ends','…Z']]
-    : [['=','='],['!=','≠'],['>','>'],['>='','≥'],['<','<'],['<=','≤']];
+    : [['=','='],['!=','≠'],['>','>'],['>=','≥'],['<','<'],['<=','≤']];
   return ops.map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('');
 }
 
