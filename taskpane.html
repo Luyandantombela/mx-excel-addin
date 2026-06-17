@@ -571,25 +571,25 @@ function buildFmtRow(j, col) {
   } else if (col.issueType === 'number') {
     /* Ensure defaults are written to the data object immediately so applyClean
        reads the correct values even if the user never touches a dropdown. */
-    col.chosenDecimals  = col.chosenDecimals  || 'keep';
+    /* defaults written immediately so applyClean reads correct values
+       even if the user never touches a dropdown */
+    col.chosenDecimals  = col.chosenDecimals  || '2';   /* default 2dp */
     col.chosenThousands = col.chosenThousands || 'none';
+    col.chosenTextCells = col.chosenTextCells || 'keep'; /* text-only cells */
     controlsHtml =
       '<div style="display:flex;flex-direction:column;gap:6px;width:160px">' +
         '<div style="display:flex;gap:6px;align-items:center">' +
           '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Decimals:</span>' +
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="decimals" style="font-size:11px;flex:1;padding:4px 6px"' +
+          '<select class="p-sel fmt-control" style="font-size:11px;flex:1;padding:4px 6px"' +
             ' onchange="issues.fmtCols[' + j + '].chosenDecimals=this.value">' +
-            '<option value="keep" selected>Keep as is</option>' +
+            '<option value="keep">Keep as is</option>' +
             '<option value="0">0</option><option value="1">1</option>' +
-            '<option value="2">2</option><option value="3">3</option>' +
+            '<option value="2" selected>2</option><option value="3">3</option>' +
           '</select>' +
         '</div>' +
-        (col.hasNonNumeric ? '<div style="font-size:10px;color:var(--warning,#f59e0b);margin-top:2px;line-height:1.4">' +
-          '<i class="ti ti-info-circle" style="margin-right:3px"></i>Non-numeric characters will be removed automatically.' +
-        '</div>' : '') +
         '<div style="display:flex;gap:6px;align-items:center">' +
           '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Thousands:</span>' +
-          '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="thousands" style="font-size:11px;flex:1;padding:4px 6px"' +
+          '<select class="p-sel fmt-control" style="font-size:11px;flex:1;padding:4px 6px"' +
             ' onchange="issues.fmtCols[' + j + '].chosenThousands=this.value">' +
             '<option value="none" selected>None</option>' +
             '<option value="comma">1,000</option>' +
@@ -597,6 +597,16 @@ function buildFmtRow(j, col) {
             '<option value="period">1.000</option>' +
           '</select>' +
         '</div>' +
+        (col.hasNonNumeric
+          ? '<div style="display:flex;gap:6px;align-items:center;margin-top:2px">' +
+              '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Text cells:</span>' +
+              '<select class="p-sel fmt-control" style="font-size:11px;flex:1;padding:4px 6px"' +
+                ' onchange="issues.fmtCols[' + j + '].chosenTextCells=this.value">' +
+                '<option value="keep" selected>Keep</option>' +
+                '<option value="blank">Blank out</option>' +
+              '</select>' +
+            '</div>'
+          : '') +
       '</div>';
   }
 
@@ -896,37 +906,45 @@ function applyClean() {
         if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(v, targetFmt);
       });
     } else if (col.issueType === 'number') {
-      var decMode  = col.chosenDecimals  || 'keep';
-      var thouMode = col.chosenThousands || 'none';
-      /* skip if user wants no changes and column has no non-numeric chars */
-      if (decMode === 'keep' && thouMode === 'none' && !col.hasNonNumeric) return;
-      /* ── pre-scan: find max dp across column so all values get same decimal places ── */
+      var decMode       = col.chosenDecimals  || '2';
+      var thouMode      = col.chosenThousands || 'none';
+      var textCellsMode = col.chosenTextCells || 'keep';
+
+      /* ── resolve decimal places ── */
       var resolvedDp;
       if (decMode === 'keep') {
+        /* scan column to find the most decimal places used */
         var maxDp = 0;
         dataRows.forEach(function(row) {
           var v = row[jNum];
           if (v === '' || v === null || v === undefined) return;
-          var cl = String(v).trim().replace(/[^0-9.\-]/g, '');
+          var cl = String(v).replace(/[^0-9.\-]/g, '');
           if (cl.indexOf('.') >= 0) maxDp = Math.max(maxDp, cl.split('.')[1].length);
         });
-        /* if no source values have decimals but a thousands separator is chosen,
-           default to 2dp so 750 becomes 750.00 not 750 */
-        resolvedDp = (maxDp === 0 && thouMode !== 'none') ? 2 : maxDp;
+        resolvedDp = maxDp;
       } else {
-        resolvedDp = +decMode;
+        resolvedDp = +decMode; /* explicit choice: 0 / 1 / 2 / 3 */
       }
+
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v).trim();
-        /* Always strip non-numeric chars + separators for reliable parsing */
+
+        /* Strip currency symbols, commas used as thousand seps etc. but keep digits/dot/minus */
         var cleaned = s.replace(/[^0-9.\-]/g, '');
         var num = parseFloat(cleaned);
-        if (isNaN(num)) return; /* unparseable — leave unchanged */
-        /* ── decimal places: uniform dp across every value in the column ── */
+
+        if (isNaN(num)) {
+          /* Cell is text-only (e.g. 'N/A', '--') — apply user choice */
+          if (textCellsMode === 'blank') row[jNum] = '';
+          /* else 'keep' — leave untouched */
+          return;
+        }
+
+        /* ── format the number ── */
         var formatted = num.toFixed(resolvedDp);
-        /* ── thousands separator ── */
+
         if (thouMode !== 'none') {
           var fp = formatted.split('.');
           var intPart = fp[0], decPart = fp[1];
@@ -935,11 +953,10 @@ function applyClean() {
           if (neg) intPart = intPart.slice(1);
           intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sepChar);
           if (neg) intPart = '-' + intPart;
-          /* period-thousands → comma decimal to avoid ambiguity */
           var decSepChar = thouMode === 'period' ? ',' : '.';
           row[jNum] = decPart !== undefined ? intPart + decSepChar + decPart : intPart;
         } else {
-          /* no thousands sep → store as actual number so Excel keeps it numeric */
+          /* store as real JS number — Excel treats it as numeric */
           row[jNum] = parseFloat(formatted);
         }
       });
