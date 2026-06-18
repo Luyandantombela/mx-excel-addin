@@ -1420,191 +1420,288 @@ function smartParseNumber(raw) {
   return { num: num, dp: dp };
 }
 
+
 /* ════════════════════════════════════════════
-   BULK MANIPULATION
+   BULK MANIPULATION — full rebuild
    ════════════════════════════════════════════ */
 
-var bulkState = {
-  sel: null,       /* { headers, rows, address } */
-  sets: [],        /* rule sets */
-  colTypes: {}     /* colIndex → 'text'|'number'|'date' */
-};
+var bulkSets = [];
+var bulkData = null; /* { headers, rows, colTypes } */
 
-/* ── Open ─────────────────────────────────── */
+/* ── Open ──────────────────────────────────── */
 function openBulk() {
   if (!sel || sel.rowCount < 2) {
-    showToast('Select your data (with headers) first, then open Bulk Manipulation.', true);
-    return;
+    showToast('Select your data with headers first.', true); return;
   }
   var headers  = sel.values[0].map(function(h){ return String(h||'').trim(); });
-  var dataRows = sel.values.slice(1).map(function(row){ return row.slice(); });
-  /* infer col types from colTypes global (set during clean step 1) or fallback */
+  var dataRows = sel.values.slice(1).map(function(r){ return r.slice(); });
   var ct = {};
-  headers.forEach(function(h, i) {
+  headers.forEach(function(h,i){
     ct[i] = (colTypes && colTypes[i]) ? colTypes[i] : inferBulkType(dataRows, i);
   });
-  bulkState = { sel: { headers: headers, rows: dataRows, address: sel.address }, sets: [], colTypes: ct };
+  bulkData = { headers: headers, rows: dataRows, colTypes: ct };
+  bulkSets = [];
   document.getElementById('bulk-sets-container').innerHTML = '';
   document.getElementById('bulk-result').style.display = 'none';
   addBulkSet();
   show('bulk-main');
 }
 
-function inferBulkType(rows, colIdx) {
-  for (var i = 0; i < rows.length; i++) {
-    var v = rows[i][colIdx];
-    if (v === null || v === undefined || String(v).trim() === '') continue;
-    if (typeof v === 'number') return 'number';
+function inferBulkType(rows, ci) {
+  for (var i=0; i<rows.length; i++) {
+    var v = rows[i][ci];
+    if (v===null||v===undefined||String(v).trim()==='') continue;
+    if (typeof v==='number') return 'number';
     var s = String(v).trim();
     if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$|^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(s)) return 'date';
-    if (!isNaN(parseFloat(s.replace(/[^0-9.\-]/g, '')))) return 'number';
+    var p = smartParseNumber(s);
+    if (!isNaN(p.num)) return 'number';
     return 'text';
   }
   return 'text';
 }
 
-/* ── Rule Set ─────────────────────────────── */
+/* ── Rule Set ──────────────────────────────── */
 function addBulkSet() {
   var id = Date.now();
-  bulkState.sets.push({ id: id });
-  var container = document.getElementById('bulk-sets-container');
+  bulkSets.push({ id: id });
+  renderSingleSet(id, bulkSets.length - 1);
+}
 
+function renderSingleSet(id, idx) {
+  var container = document.getElementById('bulk-sets-container');
   var card = document.createElement('div');
   card.className = 'acc-card';
   card.dataset.setId = id;
-  card.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:10px';
+  card.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:12px';
 
-  /* Header */
+  /* ── header ── */
   var hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--b1)';
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--b1)';
   hdr.innerHTML =
-    '<span style="font-size:11px;font-weight:600;color:var(--t2)">Rule Set ' + bulkState.sets.length + '</span>' +
-    '<button class="tb-btn" style="padding:3px 8px" onclick="removeBulkSet(' + id + ')"><i class="ti ti-trash"></i></button>';
+    '<span class="bulk-set-label" style="font-size:12px;font-weight:600;color:var(--t1)">Rule Set ' + (idx+1) + '</span>' +
+    '<button class="tb-btn" style="padding:3px 8px;border-color:var(--red,#ef4444);color:var(--red,#ef4444)" onclick="removeBulkSet(' + id + ')"><i class="ti ti-trash"></i></button>';
   card.appendChild(hdr);
 
-  /* Changes section */
+  /* ── changes ── */
   var chgSec = document.createElement('div');
   chgSec.innerHTML =
-    '<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Changes</div>' +
-    '<div class="bulk-change-list" id="chg-' + id + '" style="display:flex;flex-direction:column;gap:6px"></div>' +
-    '<button class="tb-btn" style="margin-top:6px;font-size:10px" onclick="addBulkChange(' + id + ')"><i class="ti ti-plus"></i> Add change</button>';
+    '<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Changes</div>' +
+    '<div id="chg-' + id + '" style="display:flex;flex-direction:column;gap:8px"></div>' +
+    '<button class="tb-btn" style="margin-top:6px;font-size:10.5px" onclick="addBulkChange(' + id + ')"><i class="ti ti-plus"></i> Add change</button>';
   card.appendChild(chgSec);
 
-  /* Conditions section */
+  /* ── conditions ── */
   var condSec = document.createElement('div');
   condSec.innerHTML =
-    '<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">' +
-      'Conditions <span style="font-weight:400;text-transform:none;font-size:9px;color:var(--t4)">(optional — no conditions = all rows)</span></div>' +
-    '<div class="bulk-cond-list" id="cond-' + id + '" style="display:flex;flex-direction:column;gap:6px"></div>' +
-    '<button class="tb-btn" style="margin-top:6px;font-size:10px;border-color:var(--purple,#8b5cf6);color:var(--purple,#8b5cf6)" onclick="addBulkCond(' + id + ')"><i class="ti ti-plus"></i> Add condition</button>';
+    '<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">' +
+      'Conditions <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:9px;color:var(--t4)">(optional — all rows if none)</span></div>' +
+    '<div id="cond-' + id + '" style="display:flex;flex-direction:column;gap:6px"></div>' +
+    '<button class="tb-btn" style="margin-top:6px;font-size:10.5px;border-color:var(--purple,#8b5cf6);color:var(--purple,#8b5cf6)" onclick="addBulkCond(' + id + ')"><i class="ti ti-plus"></i> Add condition</button>';
   card.appendChild(condSec);
+
+  /* ── or else ── */
+  var orSec = document.createElement('div');
+  orSec.style.cssText = 'border-top:1px solid var(--b1);padding-top:10px';
+  orSec.innerHTML =
+    '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+      '<input type="checkbox" id="or-else-toggle-' + id + '" onchange="toggleOrElse(' + id + ')" style="accent-color:var(--accent)">' +
+      '<span style="font-size:10.5px;color:var(--t2);font-weight:600">Or Else — set default values for non-matching rows</span>' +
+    '</label>' +
+    '<div id="or-else-' + id + '" style="display:none;margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>';
+  card.appendChild(orSec);
 
   container.appendChild(card);
   addBulkChange(id);
 }
 
 function removeBulkSet(id) {
-  bulkState.sets = bulkState.sets.filter(function(s){ return s.id !== id; });
+  bulkSets = bulkSets.filter(function(s){ return s.id !== id; });
   var card = document.querySelector('[data-set-id="' + id + '"]');
   if (card) card.remove();
-  /* renumber */
-  document.querySelectorAll('#bulk-sets-container .acc-card').forEach(function(c, i) {
-    var span = c.querySelector('span');
-    if (span) span.textContent = 'Rule Set ' + (i+1);
+  document.querySelectorAll('#bulk-sets-container .acc-card').forEach(function(c,i){
+    var lbl = c.querySelector('.bulk-set-label');
+    if (lbl) lbl.textContent = 'Rule Set ' + (i+1);
   });
-  if (bulkState.sets.length === 0) addBulkSet();
+  if (bulkSets.length === 0) addBulkSet();
 }
 
-/* ── Change row ───────────────────────────── */
+/* ── Or Else ──────────────────────────────── */
+function toggleOrElse(id) {
+  var chk = document.getElementById('or-else-toggle-' + id);
+  var div = document.getElementById('or-else-' + id);
+  if (!chk || !div) return;
+  div.style.display = chk.checked ? 'flex' : 'none';
+  if (chk.checked) populateOrElse(id);
+}
+
+function populateOrElse(id) {
+  var chgList = document.getElementById('chg-' + id);
+  var orDiv   = document.getElementById('or-else-' + id);
+  if (!chgList || !orDiv) return;
+  var existing = {};
+  orDiv.querySelectorAll('input[data-oe-col]').forEach(function(inp){
+    existing[inp.dataset.oeCol] = inp.value;
+  });
+  orDiv.innerHTML = '';
+  chgList.querySelectorAll('.bulk-chg-row').forEach(function(row){
+    var colSel = row.querySelector('.bulk-col-sel');
+    if (!colSel) return;
+    var ci = +colSel.value;
+    var h  = bulkData.headers[ci] || ('Col '+(ci+1));
+    var r  = document.createElement('div');
+    r.style.cssText = 'display:flex;align-items:center;gap:8px';
+    r.innerHTML =
+      '<span style="flex:1;font-size:11px;font-family:var(--mono);color:var(--t1)">' + h + '</span>' +
+      '<input class="p-inp" data-oe-col="' + ci + '" placeholder="Default value" style="flex:1;font-size:11px" value="' + (existing[ci]||'') + '">';
+    orDiv.appendChild(r);
+  });
+}
+
+/* ── Change row ────────────────────────────── */
 function addBulkChange(setId) {
   var list = document.getElementById('chg-' + setId);
   if (!list) return;
-  var headers = bulkState.sel.headers;
   var row = document.createElement('div');
-  row.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--s2);border:1px solid var(--b1);border-radius:7px';
+  row.className = 'bulk-chg-row';
+  row.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:7px';
 
-  /* col selector + remove */
+  /* col selector row */
   var top = document.createElement('div');
   top.style.cssText = 'display:flex;gap:6px;align-items:center';
   var colSel = document.createElement('select');
   colSel.className = 'p-sel bulk-col-sel';
   colSel.style.flex = '1';
-  headers.forEach(function(h, i) {
+  bulkData.headers.forEach(function(h,i){
     var o = document.createElement('option');
     o.value = i; o.textContent = h || ('Col '+(i+1));
     colSel.appendChild(o);
   });
   var eq = document.createElement('span');
-  eq.textContent = '=';
-  eq.style.cssText = 'font-size:12px;color:var(--t3);flex-shrink:0';
-  var rmBtn = document.createElement('button');
-  rmBtn.className = 'tb-btn';
-  rmBtn.style.cssText = 'padding:3px 7px;flex-shrink:0';
-  rmBtn.innerHTML = '<i class="ti ti-x"></i>';
-  rmBtn.onclick = function() { row.remove(); };
-  top.appendChild(colSel); top.appendChild(eq); top.appendChild(rmBtn);
+  eq.textContent = '='; eq.style.cssText = 'font-size:12px;color:var(--t3);flex-shrink:0';
+  var rm = document.createElement('button');
+  rm.className = 'tb-btn'; rm.style.cssText = 'padding:3px 7px;flex-shrink:0';
+  rm.innerHTML = '<i class="ti ti-x"></i>';
+  rm.onclick = function(){ row.remove(); var oe=document.getElementById('or-else-toggle-'+setId); if(oe&&oe.checked)populateOrElse(setId); };
+  top.appendChild(colSel); top.appendChild(eq); top.appendChild(rm);
   row.appendChild(top);
 
   /* value area */
   var valArea = document.createElement('div');
   valArea.className = 'bulk-val-area';
-  buildBulkValArea(valArea, 0);
+  buildValArea(valArea, 0);
   row.appendChild(valArea);
 
-  colSel.onchange = function() {
-    buildBulkValArea(valArea, +colSel.value);
+  colSel.onchange = function(){
+    buildValArea(valArea, +colSel.value);
+    var oe = document.getElementById('or-else-toggle-' + setId);
+    if (oe && oe.checked) populateOrElse(setId);
   };
 
   list.appendChild(row);
+  /* update or-else if open */
+  var oeToggle = document.getElementById('or-else-toggle-' + setId);
+  if (oeToggle && oeToggle.checked) populateOrElse(setId);
 }
 
-function buildBulkValArea(valArea, colIdx) {
-  var type = bulkState.colTypes[colIdx] || 'text';
+/* ── Build value area per type ─────────────── */
+function buildValArea(valArea, colIdx) {
+  var type = bulkData.colTypes[colIdx] || 'text';
   valArea.innerHTML = '';
+
   if (type === 'number') {
-    valArea.innerHTML =
-      '<select class="p-sel bulk-num-op" style="width:100%">' +
-        '<option value="set">Set to value</option>' +
-        '<option value="add">Add to existing</option>' +
-        '<option value="subtract">Subtract from existing</option>' +
-        '<option value="multiply">Multiply by</option>' +
-        '<option value="divide">Divide by</option>' +
-      '</select>' +
-      '<input class="p-inp bulk-num-val" placeholder="value or [Column Name]" style="width:100%;margin-top:4px">';
+    /* formula builder: operation + operand chain with live preview */
+    var preview = document.createElement('div');
+    preview.className = 'bulk-preview';
+    preview.style.cssText = 'font-size:10px;color:var(--t3);font-family:var(--mono);margin-bottom:4px;min-height:14px';
+    valArea.appendChild(preview);
+
+    var tokens = document.createElement('div');
+    tokens.className = 'bulk-num-tokens';
+    tokens.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;min-height:32px;padding:6px;background:var(--bg,#111);border:1.5px dashed var(--b2,#333);border-radius:7px;align-content:flex-start';
+    var ph = document.createElement('span');
+    ph.className = 'bulk-tok-ph';
+    ph.style.cssText = 'font-size:10px;color:var(--t4);font-style:italic;align-self:center';
+    ph.textContent = 'Click tokens below to build formula…';
+    tokens.appendChild(ph);
+    valArea.appendChild(tokens);
+
+    /* token palette */
+    var pal = document.createElement('div');
+    pal.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px';
+    var TOKENS = [
+      {k:'col',  l:'[col]',  c:'var(--green,#22c55e)',    bg:'rgba(34,197,94,.12)',  br:'rgba(34,197,94,.3)'},
+      {k:'num',  l:'num',    c:'var(--t2)',               bg:'var(--s3,#222)',        br:'var(--b2,#333)'},
+      {k:'+',    l:'+',      c:'var(--accent,#3b82f6)',   bg:'rgba(59,130,246,.12)', br:'rgba(59,130,246,.3)'},
+      {k:'-',    l:'−',      c:'var(--accent,#3b82f6)',   bg:'rgba(59,130,246,.12)', br:'rgba(59,130,246,.3)'},
+      {k:'*',    l:'×',      c:'var(--accent,#3b82f6)',   bg:'rgba(59,130,246,.12)', br:'rgba(59,130,246,.3)'},
+      {k:'/',    l:'÷',      c:'var(--accent,#3b82f6)',   bg:'rgba(59,130,246,.12)', br:'rgba(59,130,246,.3)'},
+      {k:'(',    l:'(',      c:'var(--amber,#f59e0b)',     bg:'rgba(245,158,11,.12)', br:'rgba(245,158,11,.3)'},
+      {k:')',    l:')',      c:'var(--amber,#f59e0b)',     bg:'rgba(245,158,11,.12)', br:'rgba(245,158,11,.3)'},
+    ];
+    TOKENS.forEach(function(t){
+      var chip = document.createElement('button');
+      chip.className = 'tb-btn';
+      chip.style.cssText = 'font-size:12px;font-family:var(--mono);font-weight:700;padding:3px 8px;color:' + t.c + ';background:' + t.bg + ';border-color:' + t.br;
+      chip.textContent = t.l;
+      chip.onclick = function(){ addNumToken(tokens, t.k, colIdx, valArea); };
+      pal.appendChild(chip);
+    });
+    valArea.appendChild(pal);
+    updateNumPreview(valArea, colIdx);
+
   } else if (type === 'date') {
     valArea.innerHTML =
-      '<select class="p-sel bulk-date-op" style="width:100%">' +
+      '<select class="p-sel bulk-date-op" style="width:100%;margin-bottom:4px" onchange="">' +
         '<option value="set">Set to date</option>' +
         '<option value="add_days">Add days</option>' +
         '<option value="sub_days">Subtract days</option>' +
       '</select>' +
-      '<input class="p-inp bulk-date-val" placeholder="DD/MM/YYYY or number of days" style="width:100%;margin-top:4px">';
+      '<input class="p-inp bulk-date-val" placeholder="DD/MM/YYYY or number of days" style="width:100%">';
+
   } else {
-    /* text — operations */
-    valArea.innerHTML =
-      '<select class="p-sel bulk-text-op" style="width:100%">' +
-        '<option value="set">Set to value</option>' +
-        '<option value="prefix">Prepend text</option>' +
-        '<option value="suffix">Append text</option>' +
-        '<option value="replace">Find & replace</option>' +
-        '<option value="upper">UPPER CASE</option>' +
-        '<option value="lower">lower case</option>' +
-        '<option value="title">Title Case</option>' +
-        '<option value="trim">Trim spaces</option>' +
-      '</select>' +
-      '<div class="bulk-text-inputs" style="margin-top:4px"></div>';
-    var opSel = valArea.querySelector('.bulk-text-op');
-    var inputs = valArea.querySelector('.bulk-text-inputs');
+    /* text: operation selector + dynamic inputs */
+    var opSel = document.createElement('select');
+    opSel.className = 'p-sel bulk-text-op';
+    opSel.style.cssText = 'width:100%;margin-bottom:4px';
+    [
+      ['set','Set to value'],['prefix','Prepend text'],['suffix','Append text'],
+      ['replace','Find & replace'],['upper','UPPER CASE'],['lower','lower case'],
+      ['title','Title Case'],['trim','Trim spaces']
+    ].forEach(function(o){
+      var opt = document.createElement('option');
+      opt.value = o[0]; opt.textContent = o[1]; opSel.appendChild(opt);
+    });
+    valArea.appendChild(opSel);
+    var textInputs = document.createElement('div');
+    textInputs.className = 'bulk-text-inputs';
+    valArea.appendChild(textInputs);
     function refreshTextInputs() {
       var op = opSel.value;
-      if (op === 'upper' || op === 'lower' || op === 'title' || op === 'trim') {
-        inputs.innerHTML = '';
-      } else if (op === 'replace') {
-        inputs.innerHTML =
-          '<input class="p-inp bulk-find-val" placeholder="Find..." style="width:100%;margin-bottom:4px">' +
-          '<input class="p-inp bulk-replace-val" placeholder="Replace with..." style="width:100%">';
+      textInputs.innerHTML = '';
+      if (op === 'upper' || op === 'lower' || op === 'title' || op === 'trim') return;
+      if (op === 'replace') {
+        textInputs.innerHTML =
+          '<input class="p-inp bulk-find-val" placeholder="Find…" style="width:100%;margin-bottom:4px">' +
+          '<input class="p-inp bulk-replace-val" placeholder="Replace with… (use [Column] refs)" style="width:100%">';
       } else {
-        inputs.innerHTML = '<input class="p-inp bulk-text-val" placeholder="value or [Column Name]" style="width:100%">';
+        /* set/prefix/suffix — allow [Column] refs */
+        textInputs.innerHTML = '<input class="p-inp bulk-text-val" placeholder="value or [Column Name]" style="width:100%">';
+        /* col quick-insert buttons */
+        var colBtns = document.createElement('div');
+        colBtns.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin-top:4px';
+        bulkData.headers.forEach(function(h,i){
+          var b = document.createElement('button');
+          b.className = 'tb-btn';
+          b.style.cssText = 'font-size:9px;padding:2px 6px;color:var(--green,#22c55e);border-color:rgba(34,197,94,.3)';
+          b.textContent = '[' + (h||'Col '+(i+1)) + ']';
+          b.onclick = function(){
+            var inp = textInputs.querySelector('.bulk-text-val');
+            if (inp) { var s=inp.selectionStart||inp.value.length; inp.value=inp.value.slice(0,s)+'['+h+']'+inp.value.slice(s); inp.focus(); }
+          };
+          colBtns.appendChild(b);
+        });
+        textInputs.appendChild(colBtns);
       }
     }
     opSel.onchange = refreshTextInputs;
@@ -1612,120 +1709,184 @@ function buildBulkValArea(valArea, colIdx) {
   }
 }
 
-/* ── Condition row ────────────────────────── */
+/* ── Number token builder ───────────────────── */
+function addNumToken(container, kind, colIdx, valArea) {
+  var ph = container.querySelector('.bulk-tok-ph');
+  if (ph) ph.remove();
+  var tok = document.createElement('div');
+  tok.dataset.kind = kind;
+  tok.style.cssText = 'display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:5px;font-family:var(--mono);font-size:12px;font-weight:600';
+  if (kind === 'col') {
+    tok.style.background = 'rgba(34,197,94,.12)'; tok.style.border = '1px solid rgba(34,197,94,.3)'; tok.style.color = 'var(--green,#22c55e)';
+    var s = document.createElement('select');
+    s.style.cssText = 'background:transparent;border:none;outline:none;color:var(--green,#22c55e);font-family:var(--mono);font-size:12px;font-weight:600;max-width:90px';
+    bulkData.headers.forEach(function(h,i){ var o=document.createElement('option'); o.value=i; o.textContent=h||('Col '+(i+1)); s.appendChild(o); });
+    s.onchange = function(){ updateNumPreview(valArea, colIdx); };
+    tok.appendChild(s);
+  } else if (kind === 'num') {
+    tok.style.background = 'var(--s3,#222)'; tok.style.border = '1px solid var(--b2,#333)'; tok.style.color = 'var(--t1)';
+    var inp = document.createElement('input'); inp.type='number'; inp.placeholder='0';
+    inp.style.background='transparent'; inp.style.border='none'; inp.style.outline='none'; inp.style.fontFamily='var(--mono)'; inp.style.fontSize='12px'; inp.style.fontWeight='600'; inp.style.width='50px'; inp.style.color='var(--t1)';
+    inp.oninput = function(){ updateNumPreview(valArea, colIdx); };
+    tok.appendChild(inp);
+  } else {
+    var opColors = { '+':'var(--accent,#3b82f6)', '-':'var(--accent,#3b82f6)', '*':'var(--accent,#3b82f6)', '/':'var(--accent,#3b82f6)', '(':'var(--amber,#f59e0b)', ')':'var(--amber,#f59e0b)' };
+    tok.style.background = kind==='('||kind===')'?'rgba(245,158,11,.12)':'rgba(59,130,246,.12)';
+    tok.style.border = '1px solid ' + (kind==='('||kind===')'?'rgba(245,158,11,.3)':'rgba(59,130,246,.3)');
+    tok.style.color = opColors[kind]||'var(--t1)';
+    tok.style.fontSize = '15px'; tok.style.padding = '1px 8px';
+    tok.appendChild(document.createTextNode({'+':'+','-':'−','*':'×','/':'÷'}[kind]||kind));
+  }
+  var rm = document.createElement('button');
+  rm.innerHTML = '×'; rm.style.cssText = 'background:none;border:none;color:inherit;opacity:.4;cursor:pointer;padding:0 0 0 3px;font-size:13px;line-height:1';
+  rm.onmouseenter = function(){ rm.style.opacity='1'; }; rm.onmouseleave = function(){ rm.style.opacity='.4'; };
+  rm.onclick = function(){
+    tok.remove();
+    if (!container.querySelector('[data-kind]')) { var p=document.createElement('span'); p.className='bulk-tok-ph'; p.style.cssText='font-size:10px;color:var(--t4);font-style:italic;align-self:center'; p.textContent='Click tokens below to build formula…'; container.appendChild(p); }
+    updateNumPreview(valArea, colIdx);
+  };
+  tok.appendChild(rm);
+  container.appendChild(tok);
+  updateNumPreview(valArea, colIdx);
+}
+
+function readNumFormula(valArea) {
+  var formula = '';
+  var container = valArea.querySelector('.bulk-num-tokens');
+  if (!container) return formula;
+  container.querySelectorAll('[data-kind]').forEach(function(tok){
+    var k = tok.dataset.kind;
+    if (k==='col')  { var s=tok.querySelector('select'); formula+='['+((s&&bulkData.headers[+s.value])||'?')+']'; }
+    else if (k==='num') { var i=tok.querySelector('input'); formula+=(i&&i.value)||'0'; }
+    else if (k==='('||k===')')  formula+=' '+k+' ';
+    else formula+=' '+k+' ';
+  });
+  return formula.trim();
+}
+
+function updateNumPreview(valArea, colIdx) {
+  var preview = valArea.querySelector('.bulk-preview');
+  if (!preview) return;
+  var formula = readNumFormula(valArea);
+  var col = bulkData.headers[colIdx] || ('Col '+(colIdx+1));
+  if (!formula) { preview.textContent = col + ' = …'; return; }
+  /* sample first data row */
+  var sample = bulkData.rows[0] || [];
+  var result = evalBulkFormula(sample, formula);
+  var disp = formula.replace(/\[([^\]]+)\]/g, '$1');
+  preview.innerHTML = col + ' = ' + disp + (result!==null ? ' <span style="color:var(--green,#22c55e);font-weight:700">→ ' + result + '</span>' : '');
+}
+
+/* ── Condition row ──────────────────────────── */
 function addBulkCond(setId) {
   var list = document.getElementById('cond-' + setId);
   if (!list) return;
-  var headers = bulkState.sel.headers;
   var row = document.createElement('div');
   row.style.cssText = 'display:flex;gap:6px;align-items:center';
 
   var colSel = document.createElement('select');
   colSel.className = 'p-sel'; colSel.style.flex = '1';
-  headers.forEach(function(h, i) {
-    var o = document.createElement('option'); o.value = i; o.textContent = h || ('Col '+(i+1));
-    colSel.appendChild(o);
-  });
-  var type = bulkState.colTypes[0] || 'text';
+  bulkData.headers.forEach(function(h,i){ var o=document.createElement('option'); o.value=i; o.textContent=h||('Col '+(i+1)); colSel.appendChild(o); });
+
   var opSel = document.createElement('select');
   opSel.className = 'p-sel'; opSel.style.cssText = 'width:52px;flex-shrink:0';
-  opSel.innerHTML = bulkCondOps(type);
+  opSel.innerHTML = bulkCondOps(bulkData.colTypes[0]||'text');
+
   var valInp = document.createElement('input');
-  valInp.className = 'p-inp'; valInp.style.flex = '1';
-  valInp.placeholder = 'value';
-  var rmBtn = document.createElement('button');
-  rmBtn.className = 'tb-btn'; rmBtn.style.cssText = 'padding:3px 7px;flex-shrink:0';
-  rmBtn.innerHTML = '<i class="ti ti-x"></i>';
-  rmBtn.onclick = function() { row.remove(); };
-  colSel.onchange = function() {
-    opSel.innerHTML = bulkCondOps(bulkState.colTypes[+colSel.value] || 'text');
-  };
-  row.appendChild(colSel); row.appendChild(opSel); row.appendChild(valInp); row.appendChild(rmBtn);
+  valInp.className = 'p-inp'; valInp.style.flex = '1'; valInp.placeholder = 'value';
+
+  var rm = document.createElement('button');
+  rm.className = 'tb-btn'; rm.style.cssText = 'padding:3px 7px;flex-shrink:0';
+  rm.innerHTML = '<i class="ti ti-x"></i>';
+  rm.onclick = function(){ row.remove(); };
+
+  colSel.onchange = function(){ opSel.innerHTML = bulkCondOps(bulkData.colTypes[+colSel.value]||'text'); };
+  row.appendChild(colSel); row.appendChild(opSel); row.appendChild(valInp); row.appendChild(rm);
   list.appendChild(row);
 }
 
 function bulkCondOps(type) {
-  var ops = type === 'text'
-    ? [['=','='],['!=','≠'],['contains','∋'],['starts','A…'],['ends','…Z']]
-    : [['=','='],['!=','≠'],['>','>'],['>=','≥'],['<','<'],['<=','≤']];
-  return ops.map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('');
+  var ops = (type==='number'||type==='date')
+    ? [['=','='],['!=','≠'],['>','>'],['>=','≥'],['<','<'],['<=','≤'],['contains','∋']]
+    : [['=','='],['!=','≠'],['contains','∋'],['starts','A…'],['ends','…Z']];
+  return ops.map(function(o){ return '<option value="'+o[0]+'">'+o[1]+'</option>'; }).join('');
 }
 
-/* ── Apply ────────────────────────────────── */
+/* ── Apply ──────────────────────────────────── */
 function applyBulk() {
   var btn = document.getElementById('bulk-apply-btn');
   btn.disabled = true; btn.textContent = 'Working…';
   document.getElementById('bulk-result').style.display = 'none';
-
   var totalChanged = 0;
 
-  bulkState.sets.forEach(function(set) {
-    /* read changes */
+  bulkSets.forEach(function(set) {
+    /* ── read changes ── */
     var changes = [];
     var chgList = document.getElementById('chg-' + set.id);
     if (!chgList) return;
-    chgList.querySelectorAll('.bulk-val-area').forEach(function(valArea) {
-      var row = valArea.closest('div[style*="background"]');
-      if (!row) return;
+    chgList.querySelectorAll('.bulk-chg-row').forEach(function(row){
       var colSel = row.querySelector('.bulk-col-sel');
       if (!colSel) return;
-      var colIdx = +colSel.value;
-      var type = bulkState.colTypes[colIdx] || 'text';
-      changes.push({ colIdx: colIdx, type: type, valArea: valArea });
+      var ci = +colSel.value;
+      var type = bulkData.colTypes[ci] || 'text';
+      changes.push({ ci: ci, type: type, valArea: row.querySelector('.bulk-val-area') });
     });
     if (!changes.length) return;
 
-    /* read conditions */
+    /* ── read conditions ── */
     var conds = [];
     var condList = document.getElementById('cond-' + set.id);
     if (condList) {
-      condList.querySelectorAll('div[style*="flex"]').forEach(function(row) {
+      condList.querySelectorAll('div[style*="flex"]').forEach(function(row){
         var sels = row.querySelectorAll('select');
         var inp  = row.querySelector('input');
-        if (sels.length >= 2 && inp) {
-          conds.push({ colIdx: +sels[0].value, op: sels[1].value, val: inp.value.trim() });
-        }
+        if (sels.length >= 2 && inp) conds.push({ ci: +sels[0].value, op: sels[1].value, val: inp.value.trim() });
       });
     }
 
-    /* apply to each row */
-    bulkState.sel.rows.forEach(function(dataRow) {
-      /* evaluate conditions */
-      var pass = conds.length === 0 || conds.every(function(c) {
-        return evalBulkCond(dataRow, c);
-      });
-      if (!pass) return;
+    /* ── read or-else ── */
+    var orElseActive = false;
+    var orElseVals   = {};
+    var oeToggle = document.getElementById('or-else-toggle-' + set.id);
+    if (oeToggle && oeToggle.checked) {
+      orElseActive = true;
+      var oeDiv = document.getElementById('or-else-' + set.id);
+      if (oeDiv) oeDiv.querySelectorAll('input[data-oe-col]').forEach(function(inp){ orElseVals[inp.dataset.oeCol] = inp.value; });
+    }
 
-      changes.forEach(function(ch) {
-        var current = dataRow[ch.colIdx];
-        var result = evalBulkChange(dataRow, current, ch);
-        if (result !== null && result !== undefined) {
-          dataRow[ch.colIdx] = result;
-          totalChanged++;
-        }
-      });
+    /* ── apply per row ── */
+    bulkData.rows.forEach(function(dataRow) {
+      var pass = conds.length === 0 || conds.every(function(c){ return evalBulkCond(dataRow, c); });
+      if (pass) {
+        changes.forEach(function(ch){
+          var result = evalBulkChange(dataRow, ch);
+          if (result !== null && result !== undefined) { dataRow[ch.ci] = result; totalChanged++; }
+        });
+      } else if (orElseActive) {
+        Object.keys(orElseVals).forEach(function(ci){ dataRow[+ci] = orElseVals[ci]; totalChanged++; });
+      }
     });
   });
 
-  /* write back to Excel */
-  var outputData = [bulkState.sel.headers].concat(bulkState.sel.rows);
+  /* ── write to new sheet ── */
+  var outputData = [bulkData.headers].concat(bulkData.rows);
   Excel.run(function(ctx) {
     var sheets = ctx.workbook.worksheets;
     sheets.load('items/name');
-    return ctx.sync().then(function() {
+    return ctx.sync().then(function(){
       var existing = sheets.items.map(function(s){ return s.name; });
       var name = 'Bulk Result', n = 1;
       while (existing.indexOf(name) >= 0) name = 'Bulk Result ' + (n++);
       var ws = sheets.add(name);
       ws.activate();
-      var range = ws.getCell(0,0).getResizedRange(outputData.length-1, bulkState.sel.headers.length-1);
+      var range = ws.getCell(0,0).getResizedRange(outputData.length-1, bulkData.headers.length-1);
       range.values = outputData;
       ws.getRange('1:1').format.font.bold = true;
       range.format.autofitColumns();
-      return ctx.sync().then(function() {
+      return ctx.sync().then(function(){
         var el = document.getElementById('bulk-result');
-        el.innerHTML = '<i class="ti ti-circle-check" style="color:var(--green);margin-right:6px"></i>' +
-          '<strong>' + totalChanged + ' cell' + (totalChanged!==1?'s':'') + ' updated</strong> — results written to sheet <strong>' + name + '</strong>.';
+        el.innerHTML = '<i class="ti ti-circle-check" style="color:var(--green,#22c55e);margin-right:6px"></i>' +
+          '<strong>' + totalChanged + ' cell' + (totalChanged!==1?'s':'') + ' updated</strong> — written to sheet <strong>' + name + '</strong>.';
         el.style.display = 'block';
         showToast('✓ ' + totalChanged + ' cells updated → ' + name, false);
       });
@@ -1734,84 +1895,94 @@ function applyBulk() {
   .finally(function(){ btn.disabled=false; btn.innerHTML='<i class="ti ti-player-play"></i> Apply All Rule Sets'; });
 }
 
+/* ── Evaluators ─────────────────────────────── */
 function evalBulkCond(row, cond) {
-  var rv = String(row[cond.colIdx] != null ? row[cond.colIdx] : '').trim();
+  var rv = String(row[cond.ci] != null ? row[cond.ci] : '').trim();
   var cv = cond.val;
-  var type = bulkState.colTypes[cond.colIdx] || 'text';
+  var type = bulkData.colTypes[cond.ci] || 'text';
   if (type === 'number') {
     var a = parseFloat(rv), b = parseFloat(cv);
-    if (isNaN(a) || isNaN(b)) return false;
-    if (cond.op === '=')  return a === b;
-    if (cond.op === '!=') return a !== b;
-    if (cond.op === '>')  return a > b;
-    if (cond.op === '>=') return a >= b;
-    if (cond.op === '<')  return a < b;
-    if (cond.op === '<=') return a <= b;
+    if (isNaN(a)||isNaN(b)) return false;
+    if (cond.op==='=') return a===b; if (cond.op==='!=') return a!==b;
+    if (cond.op==='>') return a>b;   if (cond.op==='>=') return a>=b;
+    if (cond.op==='<') return a<b;   if (cond.op==='<=') return a<=b;
   }
   var al = rv.toLowerCase(), bl = cv.toLowerCase();
-  if (cond.op === '=')        return al === bl;
-  if (cond.op === '!=')       return al !== bl;
-  if (cond.op === 'contains') return al.includes(bl);
-  if (cond.op === 'starts')   return al.startsWith(bl);
-  if (cond.op === 'ends')     return al.endsWith(bl);
+  if (cond.op==='=')        return al===bl;
+  if (cond.op==='!=')       return al!==bl;
+  if (cond.op==='contains') return al.includes(bl);
+  if (cond.op==='starts')   return al.startsWith(bl);
+  if (cond.op==='ends')     return al.endsWith(bl);
   return true;
 }
 
-function evalBulkChange(row, current, ch) {
+function evalBulkChange(row, ch) {
   var type = ch.type;
-  var va = ch.valArea;
+  var va   = ch.valArea;
+  if (!va) return null;
+  var current = row[ch.ci];
 
-  /* resolve [Column Name] references */
   function resolveRefs(s) {
     return s.replace(/\[([^\]]+)\]/g, function(_, name) {
-      var idx = bulkState.sel.headers.indexOf(name);
+      var idx = bulkData.headers.indexOf(name);
       return idx >= 0 ? String(row[idx] != null ? row[idx] : '') : '';
     });
   }
 
   if (type === 'number') {
-    var op  = (va.querySelector('.bulk-num-op')  || {}).value || 'set';
-    var raw = resolveRefs((va.querySelector('.bulk-num-val') || {}).value || '');
-    var num = parseFloat(raw);
-    var cur = parseFloat(String(current).replace(/[^0-9.\-]/g, ''));
-    if (op === 'set')      return isNaN(num) ? null : num;
-    if (isNaN(cur) || isNaN(num)) return null;
-    if (op === 'add')      return cur + num;
-    if (op === 'subtract') return cur - num;
-    if (op === 'multiply') return cur * num;
-    if (op === 'divide')   return num !== 0 ? cur / num : null;
-    return null;
+    var formula = readNumFormula(va);
+    if (!formula) return null;
+    return evalBulkFormula(row, formula);
   }
 
   if (type === 'date') {
-    var dop = (va.querySelector('.bulk-date-op') || {}).value || 'set';
-    var dval = (va.querySelector('.bulk-date-val') || {}).value || '';
+    var dop  = (va.querySelector('.bulk-date-op')||{}).value||'set';
+    var dval = (va.querySelector('.bulk-date-val')||{}).value||'';
     if (dop === 'set') return dval || null;
     var days = parseFloat(dval);
     if (isNaN(days)) return null;
     var d = new Date(String(current));
     if (isNaN(d.getTime())) return null;
-    d.setDate(d.getDate() + (dop === 'add_days' ? days : -days));
-    return d.toISOString().slice(0, 10);
+    d.setDate(d.getDate() + (dop==='add_days' ? days : -days));
+    return d.toISOString().slice(0,10);
   }
 
   /* text */
-  var top = (va.querySelector('.bulk-text-op') || {}).value || 'set';
+  var top = (va.querySelector('.bulk-text-op')||{}).value||'set';
   var s = String(current != null ? current : '');
-  if (top === 'upper') return s.toUpperCase();
-  if (top === 'lower') return s.toLowerCase();
-  if (top === 'title') return s.replace(/\w/g, function(c){ return c.toUpperCase(); });
-  if (top === 'trim')  return s.trim();
-  if (top === 'replace') {
-    var find = (va.querySelector('.bulk-find-val')    || {}).value || '';
-    var repl = resolveRefs((va.querySelector('.bulk-replace-val') || {}).value || '');
+  if (top==='upper') return s.toUpperCase();
+  if (top==='lower') return s.toLowerCase();
+  if (top==='title') return s.replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  if (top==='trim')  return s.trim();
+  if (top==='replace') {
+    var find = (va.querySelector('.bulk-find-val')||{}).value||'';
+    var repl = resolveRefs((va.querySelector('.bulk-replace-val')||{}).value||'');
     return find ? s.split(find).join(repl) : null;
   }
-  var tval = resolveRefs((va.querySelector('.bulk-text-val') || {}).value || '');
-  if (top === 'prefix') return tval + s;
-  if (top === 'suffix') return s + tval;
-  if (top === 'set')    return tval;
+  var tval = resolveRefs((va.querySelector('.bulk-text-val')||{}).value||'');
+  if (top==='prefix') return tval + s;
+  if (top==='suffix') return s + tval;
+  if (top==='set')    return tval;
   return null;
+}
+
+function evalBulkFormula(row, formula) {
+  /* resolve [Column Name] → numeric value */
+  var expr = formula.replace(/\[([^\]]+)\]/g, function(_, name) {
+    var idx = bulkData.headers.indexOf(name);
+    var v = idx >= 0 ? row[idx] : null;
+    var n = parseFloat(String(v||'').replace(/[^0-9.\-]/g,''));
+    return isNaN(n) ? '0' : n;
+  });
+  /* if no operators, treat as plain set */
+  if (!/[+\-*\/()]/.test(expr) && isNaN(parseFloat(expr))) return formula;
+  try {
+    var safe = expr.replace(/[^0-9.\-+*\/() ]/g, '');
+    var result = Function('"use strict";return (' + safe + ')')();
+    if (isNaN(result) || !isFinite(result)) return null;
+    /* preserve reasonable precision */
+    return +parseFloat(result.toFixed(10));
+  } catch(e) { return null; }
 }
 
 /* ════ TOAST ════ */
@@ -1979,15 +2150,15 @@ function showToast(msg, err) {
     <button class="back-btn" onclick="goHome()"><i class="ti ti-arrow-left"></i></button>
     <div>
       <div class="panel-title">Bulk Manipulation</div>
-      <div class="panel-sub">Add rule sets — applied in order to your selection</div>
+      <div class="panel-sub">Rule sets applied in order to your data</div>
     </div>
   </div>
-  <div class="panel-body" style="gap:12px" id="bulk-body">
+  <div class="panel-body" style="gap:12px">
     <div id="bulk-sets-container" style="display:flex;flex-direction:column;gap:10px"></div>
-    <button class="tb-btn" id="bulk-add-set-btn" onclick="addBulkSet()" style="align-self:flex-start">
+    <button class="tb-btn" onclick="addBulkSet()" style="align-self:flex-start;margin-top:2px">
       <i class="ti ti-plus"></i> Add Rule Set
     </button>
-    <div id="bulk-result" style="display:none;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;font-size:11px;color:var(--t1)"></div>
+    <div id="bulk-result" style="display:none;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;font-size:11px;line-height:1.6"></div>
   </div>
   <div class="panel-footer">
     <button class="primary-btn" id="bulk-apply-btn" onclick="applyBulk()">
