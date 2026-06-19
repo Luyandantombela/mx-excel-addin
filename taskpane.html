@@ -1587,21 +1587,25 @@ function addBulkChange(setId) {
   top.appendChild(colSel); top.appendChild(eq); top.appendChild(rm);
   row.appendChild(top);
 
-  /* type override row — lets user correct auto-detected type */
+  /* type override row — clearly separated and highlighted so it can't be missed */
   var typeRow = document.createElement('div');
-  typeRow.style.cssText = 'display:flex;gap:6px;align-items:center';
+  typeRow.style.cssText = 'display:flex;gap:8px;align-items:center;padding:6px 8px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:6px';
   var typeLbl = document.createElement('span');
-  typeLbl.textContent = 'Treat as:';
-  typeLbl.style.cssText = 'font-size:10px;color:var(--t3);flex-shrink:0;width:56px';
+  typeLbl.innerHTML = '<i class="ti ti-list-details" style="margin-right:4px"></i>Column type:';
+  typeLbl.style.cssText = 'font-size:10.5px;color:var(--purple,#8b5cf6);font-weight:700;flex-shrink:0;white-space:nowrap';
   var typeSel = document.createElement('select');
   typeSel.className = 'p-sel bulk-type-sel';
-  typeSel.style.cssText = 'flex:1;font-size:11px';
-  [['number','Number'],['text','Text'],['email','Email'],['date','Date']].forEach(function(t){
+  typeSel.style.cssText = 'flex:1;font-size:11.5px;font-weight:600;border-color:rgba(139,92,246,.4)';
+  [['number','🔢 Number'],['text','🔤 Text'],['email','📧 Email'],['date','📅 Date']].forEach(function(t){
     var o = document.createElement('option'); o.value = t[0]; o.textContent = t[1];
     typeSel.appendChild(o);
   });
   typeSel.value = bulkData.colTypes[0] || 'text';
-  typeRow.appendChild(typeLbl); typeRow.appendChild(typeSel);
+  var autoTag = document.createElement('span');
+  autoTag.className = 'bulk-auto-tag';
+  autoTag.textContent = 'auto-detected';
+  autoTag.style.cssText = 'font-size:9px;color:var(--t4);font-style:italic;flex-shrink:0';
+  typeRow.appendChild(typeLbl); typeRow.appendChild(typeSel); typeRow.appendChild(autoTag);
   row.appendChild(typeRow);
 
   /* value area */
@@ -1613,11 +1617,16 @@ function addBulkChange(setId) {
   colSel.onchange = function(){
     /* refresh suggested type when column changes, but let user override */
     typeSel.value = bulkData.colTypes[+colSel.value] || 'text';
+    autoTag.style.display = '';
+    autoTag.textContent = 'auto-detected';
     buildValArea(valArea, +colSel.value, typeSel.value);
     var oe = document.getElementById('or-else-toggle-' + setId);
     if (oe && oe.checked) populateOrElse(setId);
   };
   typeSel.onchange = function(){
+    /* user manually overrode the type — make that obvious */
+    autoTag.textContent = 'manually set';
+    autoTag.style.color = 'var(--accent,#3b82f6)';
     buildValArea(valArea, +colSel.value, typeSel.value);
     var oe = document.getElementById('or-else-toggle-' + setId);
     if (oe && oe.checked) populateOrElse(setId);
