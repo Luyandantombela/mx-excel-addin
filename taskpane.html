@@ -784,6 +784,24 @@ function renderIssues() {
     var headers = sel.values[0];
     var type = colTypes[j];
     var col = { header: headers[j] || ('Col '+(+j+1)), type: type, issueType: type==='date'?'date':(type==='number'?'number':'casing'), issueCount: 0, manual: true };
+    /* manually-added number columns need the same hasNonNumeric scan auto-detected ones get */
+    if (type === 'number') {
+      var mDataRows = sel.values.slice(1);
+      var mHasNonNumeric = false;
+      var mDecimalCounts = {};
+      mDataRows.forEach(function(row) {
+        var v = row[j];
+        if (v === null || v === undefined || String(v).trim() === '') return;
+        var s = String(v);
+        var parsed = smartParseNumber(s);
+        var dp = isNaN(parsed.num) ? 0 : parsed.dp;
+        mDecimalCounts[dp] = (mDecimalCounts[dp] || 0) + 1;
+        if (!isNaN(parsed.num) && /[^\d.,\-\s]/.test(s)) mHasNonNumeric = true;
+      });
+      col.hasNonNumeric  = mHasNonNumeric;
+      col.decimalCounts  = mDecimalCounts;
+      col.issueCount     = mDataRows.length;
+    }
     issues.fmtCols[j] = col;
     fmtColKeys.push(j);
     var newRow = buildFmtRow(j, col);
