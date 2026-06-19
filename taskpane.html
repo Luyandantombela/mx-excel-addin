@@ -1453,6 +1453,7 @@ function inferBulkType(rows, ci) {
     if (v===null||v===undefined||String(v).trim()==='') continue;
     if (typeof v==='number') return 'number';
     var s = String(v).trim();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return 'email';
     if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$|^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(s)) return 'date';
     var p = smartParseNumber(s);
     if (!isNaN(p.num)) return 'number';
@@ -1571,7 +1572,7 @@ function addBulkChange(setId) {
   top.style.cssText = 'display:flex;gap:6px;align-items:center';
   var colSel = document.createElement('select');
   colSel.className = 'p-sel bulk-col-sel';
-  colSel.style.flex = '1';
+  colSel.style.flex = '1.3';
   bulkData.headers.forEach(function(h,i){
     var o = document.createElement('option');
     o.value = i; o.textContent = h || ('Col '+(i+1));
@@ -1586,14 +1587,38 @@ function addBulkChange(setId) {
   top.appendChild(colSel); top.appendChild(eq); top.appendChild(rm);
   row.appendChild(top);
 
+  /* type override row — lets user correct auto-detected type */
+  var typeRow = document.createElement('div');
+  typeRow.style.cssText = 'display:flex;gap:6px;align-items:center';
+  var typeLbl = document.createElement('span');
+  typeLbl.textContent = 'Treat as:';
+  typeLbl.style.cssText = 'font-size:10px;color:var(--t3);flex-shrink:0;width:56px';
+  var typeSel = document.createElement('select');
+  typeSel.className = 'p-sel bulk-type-sel';
+  typeSel.style.cssText = 'flex:1;font-size:11px';
+  [['number','Number'],['text','Text'],['email','Email'],['date','Date']].forEach(function(t){
+    var o = document.createElement('option'); o.value = t[0]; o.textContent = t[1];
+    typeSel.appendChild(o);
+  });
+  typeSel.value = bulkData.colTypes[0] || 'text';
+  typeRow.appendChild(typeLbl); typeRow.appendChild(typeSel);
+  row.appendChild(typeRow);
+
   /* value area */
   var valArea = document.createElement('div');
   valArea.className = 'bulk-val-area';
-  buildValArea(valArea, 0);
+  buildValArea(valArea, 0, typeSel.value);
   row.appendChild(valArea);
 
   colSel.onchange = function(){
-    buildValArea(valArea, +colSel.value);
+    /* refresh suggested type when column changes, but let user override */
+    typeSel.value = bulkData.colTypes[+colSel.value] || 'text';
+    buildValArea(valArea, +colSel.value, typeSel.value);
+    var oe = document.getElementById('or-else-toggle-' + setId);
+    if (oe && oe.checked) populateOrElse(setId);
+  };
+  typeSel.onchange = function(){
+    buildValArea(valArea, +colSel.value, typeSel.value);
     var oe = document.getElementById('or-else-toggle-' + setId);
     if (oe && oe.checked) populateOrElse(setId);
   };
@@ -1605,8 +1630,8 @@ function addBulkChange(setId) {
 }
 
 /* ── Build value area per type ─────────────── */
-function buildValArea(valArea, colIdx) {
-  var type = bulkData.colTypes[colIdx] || 'text';
+function buildValArea(valArea, colIdx, forcedType) {
+  var type = forcedType || bulkData.colTypes[colIdx] || 'text';
   valArea.innerHTML = '';
 
   if (type === 'number') {
@@ -1658,6 +1683,39 @@ function buildValArea(valArea, colIdx) {
         '<option value="sub_days">Subtract days</option>' +
       '</select>' +
       '<input class="p-inp bulk-date-val" placeholder="DD/MM/YYYY or number of days" style="width:100%">';
+
+  } else if (type === 'email') {
+    /* email: domain ops, validation-aware text ops */
+    var opSel = document.createElement('select');
+    opSel.className = 'p-sel bulk-email-op';
+    opSel.style.cssText = 'width:100%;margin-bottom:4px';
+    [
+      ['set','Set to value'],
+      ['replace_domain','Replace domain (after @)'],
+      ['lower','lower case'],
+      ['trim','Trim spaces'],
+      ['extract_user','Extract username (before @)'],
+      ['extract_domain','Extract domain (after @)']
+    ].forEach(function(o){
+      var opt = document.createElement('option');
+      opt.value = o[0]; opt.textContent = o[1]; opSel.appendChild(opt);
+    });
+    valArea.appendChild(opSel);
+    var emailInputs = document.createElement('div');
+    emailInputs.className = 'bulk-email-inputs';
+    valArea.appendChild(emailInputs);
+    function refreshEmailInputs() {
+      var op = opSel.value;
+      emailInputs.innerHTML = '';
+      if (op === 'lower' || op === 'trim' || op === 'extract_user' || op === 'extract_domain') return;
+      if (op === 'replace_domain') {
+        emailInputs.innerHTML = '<input class="p-inp bulk-email-domain-val" placeholder="e.g. newcompany.com" style="width:100%">';
+      } else {
+        emailInputs.innerHTML = '<input class="p-inp bulk-email-val" placeholder="value or [Column Name]" style="width:100%">';
+      }
+    }
+    opSel.onchange = refreshEmailInputs;
+    refreshEmailInputs();
 
   } else {
     /* text: operation selector + dynamic inputs */
@@ -1806,9 +1864,10 @@ function addBulkCond(setId) {
 }
 
 function bulkCondOps(type) {
-  var ops = (type==='number'||type==='date')
-    ? [['=','='],['!=','≠'],['>','>'],['>=','≥'],['<','<'],['<=','≤'],['contains','∋']]
-    : [['=','='],['!=','≠'],['contains','∋'],['starts','A…'],['ends','…Z']];
+  var ops;
+  if (type==='number'||type==='date') ops = [['=','='],['!=','≠'],['>','>'],['>=','≥'],['<','<'],['<=','≤'],['contains','∋']];
+  else if (type==='email') ops = [['=','='],['!=','≠'],['contains','∋'],['starts','A…'],['ends','…Z'],['invalid','Invalid']];
+  else ops = [['=','='],['!=','≠'],['contains','∋'],['starts','A…'],['ends','…Z']];
   return ops.map(function(o){ return '<option value="'+o[0]+'">'+o[1]+'</option>'; }).join('');
 }
 
@@ -1828,7 +1887,9 @@ function applyBulk() {
       var colSel = row.querySelector('.bulk-col-sel');
       if (!colSel) return;
       var ci = +colSel.value;
-      var type = bulkData.colTypes[ci] || 'text';
+      /* use the user-confirmed type, not the raw auto-detected one */
+      var typeSel = row.querySelector('.bulk-type-sel');
+      var type = typeSel ? typeSel.value : (bulkData.colTypes[ci] || 'text');
       changes.push({ ci: ci, type: type, valArea: row.querySelector('.bulk-val-area') });
     });
     if (!changes.length) return;
@@ -1907,6 +1968,7 @@ function evalBulkCond(row, cond) {
     if (cond.op==='>') return a>b;   if (cond.op==='>=') return a>=b;
     if (cond.op==='<') return a<b;   if (cond.op==='<=') return a<=b;
   }
+  if (cond.op === 'invalid') return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rv);
   var al = rv.toLowerCase(), bl = cv.toLowerCase();
   if (cond.op==='=')        return al===bl;
   if (cond.op==='!=')       return al!==bl;
@@ -1945,6 +2007,23 @@ function evalBulkChange(row, ch) {
     if (isNaN(d.getTime())) return null;
     d.setDate(d.getDate() + (dop==='add_days' ? days : -days));
     return d.toISOString().slice(0,10);
+  }
+
+  if (type === 'email') {
+    var eop = (va.querySelector('.bulk-email-op')||{}).value||'set';
+    var es = String(current != null ? current : '').trim();
+    var atIdx = es.indexOf('@');
+    if (eop === 'lower') return es.toLowerCase();
+    if (eop === 'trim')  return es.trim();
+    if (eop === 'extract_user')   return atIdx >= 0 ? es.slice(0, atIdx) : es;
+    if (eop === 'extract_domain') return atIdx >= 0 ? es.slice(atIdx + 1) : '';
+    if (eop === 'replace_domain') {
+      var newDomain = resolveRefs((va.querySelector('.bulk-email-domain-val')||{}).value||'');
+      if (!newDomain || atIdx < 0) return null;
+      return es.slice(0, atIdx) + '@' + newDomain;
+    }
+    if (eop === 'set') return resolveRefs((va.querySelector('.bulk-email-val')||{}).value||'');
+    return null;
   }
 
   /* text */
