@@ -223,6 +223,19 @@ html,body{
 .spin{animation:spin .8s linear infinite;display:inline-block}
 
 /* toast */
+/* ── summary screen (step 3) ── */
+.sum-sheets-row{display:flex;gap:8px}
+.sum-sheet-card{flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.sum-sheet-card i{font-size:18px}
+.sum-sheet-name{font-size:11.5px;font-weight:700;color:var(--t1)}
+.sum-sheet-desc{font-size:10px;color:var(--t3);line-height:1.4}
+.sum-section{background:var(--s1);border:1px solid var(--b1);border-radius:8px;overflow:hidden}
+.sum-section-hdr{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--b1);font-size:11.5px;font-weight:700;color:var(--t1)}
+.sum-item{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--b1);font-size:11px;color:var(--t2);line-height:1.5}
+.sum-item:last-child{border-bottom:none}
+.sum-item i{flex-shrink:0;margin-top:1px;font-size:13px}
+.sum-item b{color:var(--t1)}
+.sum-empty{padding:10px 12px;font-size:11px;color:var(--t4);font-style:italic}
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:8px 18px;border-radius:8px;font-size:12px;font-weight:600;display:none;z-index:9999;white-space:nowrap;background:var(--green-bg);border:1px solid var(--green);color:var(--green)}
 #toast.err{background:var(--red-bg);border-color:var(--red);color:var(--red)}
 </style>
@@ -282,6 +295,21 @@ html,body{
   <div class="panel-footer">
     <button class="primary-btn" id="apply-btn" disabled onclick="applyClean()">Apply &amp; create cleaned sheet</button>
     <div class="btn-note">A new sheet is created with fixes applied. Your original stays untouched.</div>
+  </div>
+</div>
+
+<!-- ══════════ STEP 3 — SUMMARY ══════════ -->
+<div class="screen" id="step3">
+  <div class="panel-header">
+    <button class="back-btn" onclick="goHome()"><i class="ti ti-x"></i></button>
+    <div>
+      <div class="panel-title">Clean complete</div>
+      <div class="panel-sub" id="summary-sub">Two sheets created</div>
+    </div>
+  </div>
+  <div class="panel-body" id="summary-body" style="gap:10px"></div>
+  <div class="panel-footer">
+    <button class="primary-btn" onclick="goHome()">Done</button>
   </div>
 </div>
 
@@ -954,30 +982,78 @@ function applyClean() {
 
   var headers  = sel.values[0];
   var dataRows = sel.values.slice(1).map(function(r){ return r.slice(); });
+  var nCols = headers.length;
+
   /* tag every row with its original index so later steps (email fix/delete)
-     can find the right row even after blanks/dupes have filtered dataRows */
+     can find the right row even after blanks/dupes have filtered dataRows,
+     and so we can build the highlighted "original, annotated" sheet after. */
   dataRows.forEach(function(row, i){ row.__origIdx = i; });
+
+  /* ── change tracking for the summary screen + highlighted original sheet ──
+     cellChanges: { origRowIdx, colIdx, before, after, reason }
+     deletedRows: Map origRowIdx -> reason string
+     summary: per-category counters/notes built up as we go               */
+  var cellChanges = [];
+  var deletedRows = {};
+  var summary = {
+    blanksFilled: {},   /* colIdx -> count */
+    blanksDeleted: 0,
+    dupesDeleted: 0,
+    trimmed: {},         /* colIdx -> count */
+    casing: {},           /* colIdx -> {mode, count} */
+    dates: {},             /* colIdx -> {fmt, count} */
+    numbers: {},             /* colIdx -> {decimals, thousands, stripped, count} */
+    emailsFixed: 0,
+    emailsDeleted: 0
+  };
+
+  function logChange(origIdx, colIdx, before, after) {
+    if (before === after) return;
+    cellChanges.push({ origRowIdx: origIdx, colIdx: colIdx, before: before, after: after });
+  }
+
+  /* 0. trim leading/trailing whitespace on every string cell, automatically */
+  dataRows.forEach(function(row) {
+    for (var c = 0; c < nCols; c++) {
+      var v = row[c];
+      if (typeof v === 'string') {
+        var trimmed = v.trim();
+        if (trimmed !== v) {
+          logChange(row.__origIdx, c, v, trimmed);
+          summary.trimmed[c] = (summary.trimmed[c] || 0) + 1;
+          row[c] = trimmed;
+        }
+      }
+    }
+  });
 
   /* 1. blanks — delete rows for columns set to 'delete', fill the rest */
   var blankRowsToDelete = new Set();
   Object.entries(issues.blankCols).forEach(function(entry) {
     var j = entry[0], col = entry[1];
+    var jNum = +j;
     if (col.action === 'delete') {
-      /* mark every row that's blank in this column for deletion */
-      dataRows.forEach(function(row, i) {
-        var v = row[j];
-        if (v === null || v === undefined || v.toString().trim() === '') blankRowsToDelete.add(i);
+      dataRows.forEach(function(row) {
+        var v = row[jNum];
+        if (v === null || v === undefined || v.toString().trim() === '') blankRowsToDelete.add(row.__origIdx);
       });
     } else {
       var inp = document.querySelector('.blanks-fill-inp[data-col="' + j + '"]');
       var fillVal = inp ? inp.value : defaultVal(col.type);
       dataRows.forEach(function(row) {
-        if (row[j] === null || row[j] === undefined || row[j].toString().trim() === '') row[j] = fillVal;
+        var v = row[jNum];
+        if (v === null || v === undefined || v.toString().trim() === '') {
+          logChange(row.__origIdx, jNum, v, fillVal);
+          summary.blanksFilled[jNum] = (summary.blanksFilled[jNum] || 0) + 1;
+          row[jNum] = fillVal;
+        }
       });
     }
   });
   if (blankRowsToDelete.size) {
-    dataRows = dataRows.filter(function(_, i){ return !blankRowsToDelete.has(i); });
+    blankRowsToDelete.forEach(function(idx){ deletedRows[idx] = 'Blank cell (row deleted)'; });
+    summary.blanksDeleted = blankRowsToDelete.size;
+    dataRows = dataRows.filter(function(row){ return !blankRowsToDelete.has(row.__origIdx); });
   }
 
   /* 2. remove checked dupes — match by __origIdx, not array position,
@@ -986,10 +1062,13 @@ function applyClean() {
   document.querySelectorAll('.dupe-cb:checked').forEach(function(cb) {
     dupeIdxToRemove.add(issues.dupes[+cb.dataset.idx].rowIndex - 2);
   });
-  dataRows = dataRows.filter(function(row){ return !dupeIdxToRemove.has(row.__origIdx); });
+  if (dupeIdxToRemove.size) {
+    dupeIdxToRemove.forEach(function(idx){ if (!(idx in deletedRows)) deletedRows[idx] = 'Duplicate row'; });
+    summary.dupesDeleted = dupeIdxToRemove.size;
+    dataRows = dataRows.filter(function(row){ return !dupeIdxToRemove.has(row.__origIdx); });
+  }
 
   /* 3. formatting — apply per-column control based on issue type */
-  /* collect Excel number format strings to apply after writing */
   var colNumFormats = {};
 
   Object.keys(issues.fmtCols).forEach(function(j) {
@@ -999,28 +1078,36 @@ function applyClean() {
     if (col.issueType === 'casing') {
       var mode = col.chosenCasing || (col.type === 'email' ? 'keep' : 'title');
       if (mode === 'keep') return;
+      var casingCount = 0;
       dataRows.forEach(function(row) {
         var v = row[jNum];
-        if (typeof v === 'string' && v.trim() !== '') row[jNum] = applyCasing(v, mode);
+        if (typeof v === 'string' && v.trim() !== '') {
+          var newV = applyCasing(v, mode);
+          if (newV !== v) { logChange(row.__origIdx, jNum, v, newV); casingCount++; }
+          row[jNum] = newV;
+        }
       });
+      if (casingCount) summary.casing[jNum] = { mode: mode, count: casingCount };
+
     } else if (col.issueType === 'date') {
-      /* Read from data object — set by onchange, not fragile querySelector */
       var targetFmt = col.chosenFmt || 'YYYY/MM/DD';
+      var dateCount = 0;
       dataRows.forEach(function(row) {
         var v = row[jNum];
-        if (v !== '' && v !== null && v !== undefined) row[jNum] = normalizeDate(v, targetFmt);
+        if (v !== '' && v !== null && v !== undefined) {
+          var newV = normalizeDate(v, targetFmt);
+          if (newV !== v) { logChange(row.__origIdx, jNum, v, newV); dateCount++; }
+          row[jNum] = newV;
+        }
       });
+      if (dateCount) summary.dates[jNum] = { fmt: targetFmt, count: dateCount };
+
     } else if (col.issueType === 'number') {
       var decMode       = col.chosenDecimals  || '2';
       var thouMode      = col.chosenThousands || 'none';
       var textCellsMode = col.chosenTextCells || 'keep';
-
-      /* ── resolve decimal places ── */
-      /* 'keep' = preserve each cell's own dp individually (handled per-cell below) */
       var resolvedDp = decMode === 'keep' ? 0 : +decMode;
 
-      /* ── build Excel numberFormat string so the cell format matches exactly ── */
-      /* For 'keep' mode we use General so each cell shows its natural precision */
       var numFmtStr;
       if (decMode === 'keep') {
         numFmtStr = 'General';
@@ -1033,27 +1120,37 @@ function applyClean() {
       }
       colNumFormats[jNum] = { fmt: numFmtStr, col: jNum };
 
+      var numCount = 0, strippedCount = 0, blankedCount = 0;
       dataRows.forEach(function(row) {
         var v = row[jNum];
         if (v === '' || v === null || v === undefined) return;
         var s = String(v).trim();
         var parsed = smartParseNumber(s);
         if (isNaN(parsed.num)) {
-          /* pure text cell — no number found at all */
-          if (textCellsMode === 'blank') row[jNum] = '';
+          if (textCellsMode === 'blank') {
+            logChange(row.__origIdx, jNum, v, '');
+            blankedCount++;
+            row[jNum] = '';
+          }
           return;
         }
-        if (decMode === 'keep') {
-          /* Store the raw parsed number — no toFixed, no rounding.
-             'General' format lets Excel display each value naturally. */
-          row[jNum] = parsed.num;
-        } else {
-          row[jNum] = parseFloat(parsed.num.toFixed(resolvedDp));
+        var hadNonNumericChars = /[^\d.,\-\s]/.test(s);
+        var newV = decMode === 'keep' ? parsed.num : parseFloat(parsed.num.toFixed(resolvedDp));
+        if (String(newV) !== String(v)) {
+          logChange(row.__origIdx, jNum, v, newV);
+          numCount++;
+          if (hadNonNumericChars) strippedCount++;
         }
+        row[jNum] = newV;
       });
+      if (numCount || blankedCount) {
+        summary.numbers[jNum] = {
+          decimals: decMode, thousands: thouMode,
+          count: numCount, stripped: strippedCount, blanked: blankedCount
+        };
+      }
     }
   });
-
 
   /* 4. fix / delete emails — use __origIdx so this still works even though
      dataRows has already been filtered by the blanks/dupes steps above */
@@ -1062,6 +1159,8 @@ function applyClean() {
     if (e.action === 'delete') emailRowsToDelete.add(e.rowIndex - 2);
   });
   if (emailRowsToDelete.size) {
+    emailRowsToDelete.forEach(function(idx){ if (!(idx in deletedRows)) deletedRows[idx] = 'Invalid email'; });
+    summary.emailsDeleted = emailRowsToDelete.size;
     dataRows = dataRows.filter(function(row){ return !emailRowsToDelete.has(row.__origIdx); });
   }
   document.querySelectorAll('.email-input').forEach(function(inp) {
@@ -1070,42 +1169,186 @@ function applyClean() {
     if (e.action === 'delete') return; /* already removed above */
     var origIdx = e.rowIndex - 2;
     var row = dataRows.find(function(r){ return r.__origIdx === origIdx; });
-    if (row) row[e.colIdx] = inp.value;
+    if (row) {
+      var before = row[e.colIdx];
+      if (before !== inp.value) { logChange(origIdx, e.colIdx, before, inp.value); summary.emailsFixed++; }
+      row[e.colIdx] = inp.value;
+    }
   });
+
   /* strip the helper property before writing to Excel */
   dataRows.forEach(function(row){ delete row.__origIdx; });
 
   var cleanedData = [headers].concat(dataRows);
+
+  /* ── build the highlighted "original, annotated" sheet data ──
+     Same shape/order as the original selection — nothing removed, nothing
+     reordered — just colour-coded so the user can see exactly what changed. */
+  var origRows = sel.values.slice(1);
+  var annotatedData = [headers].concat(origRows);
 
   Excel.run(function(ctx) {
     var sheets = ctx.workbook.worksheets;
     sheets.load('items/name');
     return ctx.sync().then(function() {
       var existing = sheets.items.map(function(s){ return s.name; });
-      var name = 'Cleaned Data', n = 1;
-      while (existing.includes(name)) name = 'Cleaned Data ' + (n++);
-      var ns = sheets.add(name);
+
+      /* ── Sheet 1: the cleaned result ── */
+      var cleanName = 'Cleaned Data', n = 1;
+      while (existing.includes(cleanName)) cleanName = 'Cleaned Data ' + (n++);
+      existing.push(cleanName);
+      var ns = sheets.add(cleanName);
       var dataRange = ns.getRangeByIndexes(0, 0, cleanedData.length, cleanedData[0].length);
       dataRange.values = cleanedData;
       ns.getRangeByIndexes(0, 0, 1, cleanedData[0].length).format.font.bold = true;
-      /* Apply number formats — overrides any inherited cell format */
       Object.keys(colNumFormats).forEach(function(ci) {
         var nf = colNumFormats[ci];
-        /* rows 1..N (skip header row 0) */
         var colRange = ns.getRangeByIndexes(1, nf.col, cleanedData.length - 1, 1);
         colRange.numberFormat = [[nf.fmt]];
       });
+
+      /* ── Sheet 2: original data, annotated with highlights ── */
+      var origName = 'Original (Highlighted)', m = 1;
+      while (existing.includes(origName)) origName = 'Original (Highlighted) ' + (m++);
+      var os = sheets.add(origName);
+      var origRange = os.getCell(0, 0).getResizedRange(annotatedData.length - 1, nCols - 1);
+      origRange.values = annotatedData;
+      os.getRangeByIndexes(0, 0, 1, nCols).format.font.bold = true;
+
+      /* highlight changed cells — amber */
+      cellChanges.forEach(function(c) {
+        var cell = os.getCell(c.origRowIdx + 1, c.colIdx); /* +1 for header row */
+        cell.format.fill.color = '#FFE9A8';
+        cell.format.font.color = '#5C4400';
+      });
+      /* highlight deleted rows — red, full row */
+      Object.keys(deletedRows).forEach(function(idxStr) {
+        var idx = +idxStr;
+        var rowRange = os.getCell(idx + 1, 0).getResizedRange(0, nCols - 1);
+        rowRange.format.fill.color = '#FFD2D2';
+        rowRange.format.font.color = '#7A1F1F';
+        rowRange.format.font.strikethrough = true;
+      });
+      os.getRangeByIndexes(0, 0, annotatedData.length, nCols).format.autofitColumns();
       ns.activate();
+
       return ctx.sync();
     });
   }).then(function() {
-    showToast('✓ Cleaned sheet created!', false);
-    goHome();
+    renderSummary(summary, cellChanges, deletedRows, headers, cleanedData.length - 1);
+    show('step3');
   }).catch(function(e) {
     showToast(e.message, true);
   }).finally(function() {
     btn.disabled = false; btn.textContent = 'Apply & create cleaned sheet';
   });
+}
+
+/* ════ STEP 3 — SUMMARY RENDER ════ */
+function renderSummary(summary, cellChanges, deletedRows, headers, finalRowCount) {
+  var body = document.getElementById('summary-body');
+  body.innerHTML = '';
+
+  var totalDeleted = Object.keys(deletedRows).length;
+  document.getElementById('summary-sub').textContent =
+    cellChanges.length + ' cell' + (cellChanges.length!==1?'s':'') + ' changed · ' +
+    totalDeleted + ' row' + (totalDeleted!==1?'s':'') + ' removed · ' + finalRowCount + ' row' + (finalRowCount!==1?'s':'') + ' remain';
+
+  /* ── two sheets card ── */
+  var sheetsRow = document.createElement('div');
+  sheetsRow.className = 'sum-sheets-row';
+  sheetsRow.innerHTML =
+    '<div class="sum-sheet-card">' +
+      '<i class="ti ti-circle-check" style="color:var(--green)"></i>' +
+      '<div class="sum-sheet-name">Cleaned Data</div>' +
+      '<div class="sum-sheet-desc">Your fixed, ready-to-use version.</div>' +
+    '</div>' +
+    '<div class="sum-sheet-card">' +
+      '<i class="ti ti-highlight" style="color:#f5a623"></i>' +
+      '<div class="sum-sheet-name">Original (Highlighted)</div>' +
+      '<div class="sum-sheet-desc">Your original data — changed cells in amber, removed rows in red.</div>' +
+    '</div>';
+  body.appendChild(sheetsRow);
+
+  /* ── helper to build a section ── */
+  function section(icon, color, title, items) {
+    var wrap = document.createElement('div');
+    wrap.className = 'sum-section';
+    var hdr = document.createElement('div');
+    hdr.className = 'sum-section-hdr';
+    hdr.innerHTML = '<i class="ti ' + icon + '" style="color:' + color + '"></i>' + title;
+    wrap.appendChild(hdr);
+    if (!items.length) {
+      var empty = document.createElement('div');
+      empty.className = 'sum-empty';
+      empty.textContent = 'No changes in this category';
+      wrap.appendChild(empty);
+    } else {
+      items.forEach(function(html) {
+        var it = document.createElement('div');
+        it.className = 'sum-item';
+        it.innerHTML = html;
+        wrap.appendChild(it);
+      });
+    }
+    body.appendChild(wrap);
+  }
+
+  function colName(idx) { return headers[idx] || ('Col ' + (idx+1)); }
+
+  /* ── Whitespace trimmed ── */
+  var trimItems = Object.keys(summary.trimmed).map(function(c) {
+    return '<i class="ti ti-text-decrease" style="color:var(--t3)"></i>' +
+      '<span><b>' + colName(+c) + '</b> — trailing/leading spaces removed from ' + summary.trimmed[c] + ' cell' + (summary.trimmed[c]!==1?'s':'') + '</span>';
+  });
+  section('ti-text-decrease', 'var(--t3)', 'Whitespace Cleaned', trimItems);
+
+  /* ── Blanks ── */
+  var blankItems = [];
+  Object.keys(summary.blanksFilled).forEach(function(c) {
+    blankItems.push('<i class="ti ti-pencil" style="color:var(--acc)"></i><span><b>' + colName(+c) + '</b> — ' + summary.blanksFilled[c] + ' blank cell' + (summary.blanksFilled[c]!==1?'s':'') + ' filled</span>');
+  });
+  if (summary.blanksDeleted) {
+    blankItems.push('<i class="ti ti-trash" style="color:var(--red)"></i><span><b>' + summary.blanksDeleted + ' row' + (summary.blanksDeleted!==1?'s':'') + '</b> deleted due to blank cells</span>');
+  }
+  section('ti-circle-minus', 'var(--red)', 'Blanks', blankItems);
+
+  /* ── Duplicates ── */
+  var dupeItems = summary.dupesDeleted
+    ? ['<i class="ti ti-trash" style="color:var(--red)"></i><span><b>' + summary.dupesDeleted + ' duplicate row' + (summary.dupesDeleted!==1?'s':'') + '</b> deleted</span>']
+    : [];
+  section('ti-copy', 'var(--amber)', 'Duplicate Rows', dupeItems);
+
+  /* ── Formatting ── */
+  var fmtItems = [];
+  Object.keys(summary.casing).forEach(function(c) {
+    var d = summary.casing[c];
+    var modeLabel = { upper:'UPPER CASE', lower:'lower case', title:'Title Case' }[d.mode] || d.mode;
+    fmtItems.push('<i class="ti ti-letter-case" style="color:var(--purple)"></i><span><b>' + colName(+c) + '</b> — converted to ' + modeLabel + ' (' + d.count + ' cell' + (d.count!==1?'s':'') + ')</span>');
+  });
+  Object.keys(summary.dates).forEach(function(c) {
+    var d = summary.dates[c];
+    fmtItems.push('<i class="ti ti-calendar" style="color:var(--acc)"></i><span><b>' + colName(+c) + '</b> — reformatted to ' + d.fmt + ' (' + d.count + ' cell' + (d.count!==1?'s':'') + ')</span>');
+  });
+  Object.keys(summary.numbers).forEach(function(c) {
+    var d = summary.numbers[c];
+    var bits = [];
+    if (d.decimals !== 'keep') bits.push(d.decimals + ' decimal' + (d.decimals!=='1'?'s':''));
+    else bits.push('original decimals kept');
+    if (d.thousands !== 'none') bits.push('thousands separator');
+    var line = '<i class="ti ti-decimal" style="color:var(--green)"></i><span><b>' + colName(+c) + '</b> — reformatted (' + bits.join(', ') + '), ' + d.count + ' cell' + (d.count!==1?'s':'') + ' updated';
+    if (d.stripped) line += '; non-numeric characters stripped from ' + d.stripped + ' cell' + (d.stripped!==1?'s':'');
+    if (d.blanked)  line += '; ' + d.blanked + ' text-only cell' + (d.blanked!==1?'s':'') + ' blanked out';
+    line += '</span>';
+    fmtItems.push(line);
+  });
+  section('ti-text-spellcheck', 'var(--acc)', 'Formatting Inconsistencies', fmtItems);
+
+  /* ── Emails ── */
+  var emailItems = [];
+  if (summary.emailsFixed) emailItems.push('<i class="ti ti-mail-check" style="color:var(--green)"></i><span><b>' + summary.emailsFixed + ' email' + (summary.emailsFixed!==1?'s':'') + '</b> corrected</span>');
+  if (summary.emailsDeleted) emailItems.push('<i class="ti ti-trash" style="color:var(--red)"></i><span><b>' + summary.emailsDeleted + ' row' + (summary.emailsDeleted!==1?'s':'') + '</b> deleted due to invalid emails</span>');
+  section('ti-mail-x', 'var(--amber)', 'Incorrect Emails', emailItems);
 }
 
 
