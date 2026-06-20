@@ -369,19 +369,35 @@ function openClean() {
   if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
   /* Merge .text over .values for any cell where the raw value is a number but
      the displayed text looks like a date — this replaces serial numbers with
-     the string Excel already shows, exactly like the website sees it. */
+     the string Excel already shows, exactly like the website sees it.
+     Excel can display a date-backed cell in many formats (12-Jan-26, 1/5/2026,
+     2026-01-05, etc.) depending on the cell's number format, so we can't rely
+     on one strict regex — we run the text through tryParseDate and only keep
+     the original number if nothing recognisable comes back. */
   if (sel.text) {
     sel.values = sel.values.map(function(row, ri) {
       return row.map(function(v, ci) {
-        var t = sel.text[ri] && sel.text[ri][ci] != null ? String(sel.text[ri][ci]) : '';
-        /* Excel serial date: raw value is a number, displayed text is M/D/YYYY */
-        if (typeof v === 'number' && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(t)) {
-          /* Parse as M/D/YYYY (Excel default locale) → store as YYYY/MM/DD canonical */
+        var t = sel.text[ri] && sel.text[ri][ci] != null ? String(sel.text[ri][ci]).trim() : '';
+        if (typeof v !== 'number' || !t) return v;
+
+        /* Strict M/D/YYYY — Excel's most common default display, parsed as
+           month-first to avoid the day/month ambiguity tryParseDate can't resolve. */
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(t)) {
           var p = t.split('/');
           var mo = String(p[0]).padStart(2,'0');
           var dy = String(p[1]).padStart(2,'0');
           var yr = p[2];
           return yr + '/' + mo + '/' + dy;
+        }
+
+        /* Any other date-like display Excel might be using (12-Jan-26, 07 Jan 2026,
+           2026-01-05, 2026.01.09 etc.) — only convert if the text contains a digit
+           AND a date separator/month-name, so we don't accidentally treat plain
+           numeric text (like "46034" typed as text) as a date. */
+        var looksDateish = /\d/.test(t) && (/[\/\-.]/.test(t) || /[A-Za-z]{3}/.test(t));
+        if (looksDateish) {
+          var canonical = tryParseDate(t);
+          if (/^\d{4}\/\d{2}\/\d{2}$/.test(canonical)) return canonical;
         }
         return v;
       });
@@ -692,17 +708,33 @@ function tryParseDate(v) {
   if (!s) return v;
   /* YYYY-MM-DD or YYYY/MM/DD (1- or 2-digit month/day) */
   var iso = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-  if (iso) return iso[1]+'/'+String(iso[2]).padStart(2,'0')+'/'+String(iso[3]).padStart(2,'0');
+  if (iso) {
+    var isoMo = +iso[2], isoDy = +iso[3];
+    if (isoMo >= 1 && isoMo <= 12 && isoDy >= 1 && isoDy <= 31) {
+      return iso[1]+'/'+String(iso[2]).padStart(2,'0')+'/'+String(iso[3]).padStart(2,'0');
+    }
+    /* invalid month/day (e.g. 2026-13-01) — fall through to other parsers below */
+  }
   /* D/M/YYYY or DD/MM/YYYY */
   var dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-  if (dmy) return dmy[3]+'/'+String(dmy[2]).padStart(2,'0')+'/'+String(dmy[1]).padStart(2,'0');
+  if (dmy) {
+    var dmyDy = +dmy[1], dmyMo = +dmy[2];
+    if (dmyMo >= 1 && dmyMo <= 12 && dmyDy >= 1 && dmyDy <= 31) {
+      return dmy[3]+'/'+String(dmy[2]).padStart(2,'0')+'/'+String(dmy[1]).padStart(2,'0');
+    }
+  }
   /* Compact DDMMYYYY */
   var num = s.match(/^(\d{2})(\d{2})(\d{4})$/);
-  if (num) return num[3]+'/'+num[2]+'/'+num[1];
-  /* Fallback — native Date (handles 'Jan 5 2026', ISO timestamps, etc.) */
+  if (num) {
+    var numDy = +num[1], numMo = +num[2];
+    if (numMo >= 1 && numMo <= 12 && numDy >= 1 && numDy <= 31) {
+      return num[3]+'/'+num[2]+'/'+num[1];
+    }
+  }
+  /* Fallback — native Date (handles 'Jan 5 2026', '12-Jan-26', ISO timestamps, etc.) */
   var d = new Date(s);
   if (!isNaN(d.getTime())) return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
-  return v;
+  return v; /* genuinely unparseable — leave as original text (e.g. "Unknown") */
 }
 
 function detectDateFormat(v) {
