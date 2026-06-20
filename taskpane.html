@@ -436,15 +436,17 @@ function analyseData() {
   var headers  = sel.values[0];
   var dataRows = sel.values.slice(1);
 
-  /* blanks — per column */
+  /* blanks — per column, also store the 0-based data row indices that are blank
+     so the UI can offer 'delete these rows' as well as 'fill with value' */
   var blankCols = {};
   headers.forEach(function(h, j) {
-    var empties = [];
+    var empties = [];      /* display row numbers (1-based incl header) */
+    var rowIdxs = [];      /* 0-based index into dataRows */
     dataRows.forEach(function(row, i) {
       var v = row[j];
-      if (v === null || v === undefined || v.toString().trim() === '') empties.push(i + 2);
+      if (v === null || v === undefined || v.toString().trim() === '') { empties.push(i + 2); rowIdxs.push(i); }
     });
-    if (empties.length) blankCols[j] = { header: h || ('Col ' + (j+1)), type: colTypes[j], count: empties.length };
+    if (empties.length) blankCols[j] = { header: h || ('Col ' + (j+1)), type: colTypes[j], count: empties.length, rowIdxs: rowIdxs, action: 'fill' };
   });
 
   /* duplicates */
@@ -551,13 +553,16 @@ function buildFmtRow(j, col) {
 
   var controlsHtml = '';
   if (col.issueType === 'casing') {
+    /* Email columns default to 'keep' — casing rarely matters and forcing
+       Title Case on an email looks broken (e.g. 'John@Gmail.com'). */
+    var isEmailCol = col.type === 'email';
     controlsHtml =
       '<select class="p-sel fmt-control" data-col="' + j + '" data-mode="casing" style="font-size:11px;width:140px"' +
         ' onchange="issues.fmtCols[' + j + '].chosenCasing=this.value">' +
-        '<option value="keep">Keep as is</option>' +
+        '<option value="keep"' + (isEmailCol ? ' selected' : '') + '>Keep as is</option>' +
         '<option value="upper">UPPER CASE</option>' +
         '<option value="lower">lower case</option>' +
-        '<option value="title" selected>Title Case</option>' +
+        '<option value="title"' + (isEmailCol ? '' : ' selected') + '>Title Case</option>' +
       '</select>';
   } else if (col.issueType === 'date') {
     /* Set default on the data object immediately */
@@ -710,15 +715,45 @@ function renderIssues() {
   if (!blankTotal) {
     blanksInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:8px 0">No blank cells found</div>';
   } else {
+    /* delete-all-rows-with-blanks — one click clears every row that has ANY blank cell */
+    var delAllWrap = document.createElement('div');
+    delAllWrap.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:8px';
+    delAllWrap.innerHTML =
+      '<button class="tb-btn" id="blanks-delete-all-btn" style="font-size:10.5px;border-color:var(--red,#f26c6c);color:var(--red,#f26c6c)">' +
+        '<i class="ti ti-trash"></i> Delete all rows with blanks' +
+      '</button>';
+    blanksInner.appendChild(delAllWrap);
+
     Object.entries(bc).forEach(function(entry) {
       var j = entry[0], col = entry[1];
       var def = defaultVal(col.type);
+      col.action = col.action || 'fill';
       var row = document.createElement('div');
       row.className = 'blank-col-row';
+      row.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--b1)';
       row.innerHTML =
-        '<div class="blank-col-name">' + col.header + ' <span style="color:var(--t4)">(x' + col.count + ')</span></div>' +
-        '<input class="p-inp" style="font-size:11px" value="' + def + '" data-col="' + j + '">';
+        '<div style="display:flex;align-items:center;justify-content:space-between">' +
+          '<div class="blank-col-name">' + col.header + ' <span style="color:var(--t4)">(x' + col.count + ')</span></div>' +
+          '<select class="p-sel blanks-action-sel" data-col="' + j + '" style="font-size:10.5px;width:120px">' +
+            '<option value="fill"' + (col.action==='fill'?' selected':'') + '>Fill value</option>' +
+            '<option value="delete"' + (col.action==='delete'?' selected':'') + '>Delete these rows</option>' +
+          '</select>' +
+        '</div>' +
+        '<input class="p-inp blanks-fill-inp" style="font-size:11px' + (col.action==='delete'?';display:none':'') + '" value="' + def + '" data-col="' + j + '">';
+      var actionSel = row.querySelector('.blanks-action-sel');
+      var fillInp = row.querySelector('.blanks-fill-inp');
+      actionSel.addEventListener('change', function(){
+        col.action = actionSel.value;
+        fillInp.style.display = actionSel.value === 'delete' ? 'none' : '';
+      });
       blanksInner.appendChild(row);
+    });
+
+    delAllWrap.querySelector('#blanks-delete-all-btn').addEventListener('click', function(){
+      Object.values(bc).forEach(function(col){ col.action = 'delete'; });
+      blanksInner.querySelectorAll('.blanks-action-sel').forEach(function(s){ s.value = 'delete'; });
+      blanksInner.querySelectorAll('.blanks-fill-inp').forEach(function(i){ i.style.display = 'none'; });
+      showToast('All rows with blanks will be deleted on Apply', false);
     });
   }
   blanksBody.appendChild(blanksInner);
@@ -812,7 +847,7 @@ function renderIssues() {
   });
 
 
-  /* ── Incorrect emails — exact pattern: replace-all row + original->fixed error-items ── */
+  /* ── Incorrect emails — per-row Fill or Delete, plus delete-all and fill-all ── */
   var emailAcc = makeAcc('emails', 'ti-mail-x', 'var(--amber)', 'Incorrect Emails', be.length, 'b-amber');
   var emailBody = emailAcc.querySelector('.acc-body');
   var emailInner = document.createElement('div');
@@ -821,6 +856,9 @@ function renderIssues() {
   if (!be.length) {
     emailInner.innerHTML = '<div style="font-size:11px;color:var(--t4);padding:8px 0">No invalid emails found</div>';
   } else {
+    be.forEach(function(e){ e.action = e.action || 'fill'; });
+
+    /* top action row: fill-all-with-value + delete-all */
     var replaceRow = document.createElement('div');
     replaceRow.className = 'replace-all-row';
     replaceRow.innerHTML =
@@ -829,20 +867,37 @@ function renderIssues() {
       '<button class="add-col-btn" id="email-replace-btn" style="white-space:nowrap">Apply</button>';
     emailInner.appendChild(replaceRow);
 
+    var delAllWrap = document.createElement('div');
+    delAllWrap.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:8px';
+    delAllWrap.innerHTML =
+      '<button class="tb-btn" id="emails-delete-all-btn" style="font-size:10.5px;border-color:var(--red,#f26c6c);color:var(--red,#f26c6c)">' +
+        '<i class="ti ti-trash"></i> Delete all rows with invalid emails' +
+      '</button>';
+    emailInner.appendChild(delAllWrap);
+
     be.forEach(function(e, idx) {
       var row = document.createElement('div');
       row.className = 'error-item';
+      row.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid var(--b1)';
       row.innerHTML =
-        '<div>' +
-          '<div class="error-label error-left">Invalid</div>' +
-          '<div class="error-orig">' + e.value + '</div>' +
-          '<div class="error-col">in column "' + e.col + '"</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+          '<div style="min-width:0">' +
+            '<div class="error-label error-left">Invalid</div>' +
+            '<div class="error-orig" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + e.value + '</div>' +
+            '<div class="error-col">in column "' + e.col + '"</div>' +
+          '</div>' +
+          '<select class="p-sel email-action-sel" data-idx="' + idx + '" style="font-size:10.5px;width:120px;flex-shrink:0">' +
+            '<option value="fill"' + (e.action==='fill'?' selected':'') + '>Fill value</option>' +
+            '<option value="delete"' + (e.action==='delete'?' selected':'') + '>Delete this row</option>' +
+          '</select>' +
         '</div>' +
-        '<span class="error-arrow"><i class="ti ti-arrow-right"></i></span>' +
-        '<div>' +
-          '<div class="error-label error-right">Fixed</div>' +
-          '<input class="p-inp email-input" style="font-size:11px" value="x@gmail.com" data-idx="' + idx + '" placeholder="Enter valid email">' +
-        '</div>';
+        '<input class="p-inp email-input" style="font-size:11px' + (e.action==='delete'?';display:none':'') + '" value="x@gmail.com" data-idx="' + idx + '" placeholder="Enter valid email">';
+      var actionSel = row.querySelector('.email-action-sel');
+      var fillInp = row.querySelector('.email-input');
+      actionSel.addEventListener('change', function(){
+        e.action = actionSel.value;
+        fillInp.style.display = actionSel.value === 'delete' ? 'none' : '';
+      });
       emailInner.appendChild(row);
     });
 
@@ -850,6 +905,13 @@ function renderIssues() {
       var val = document.getElementById('email-replace-all').value || 'x@gmail.com';
       emailInner.querySelectorAll('.email-input').forEach(function(inp){ inp.value = val; });
       showToast('Applied to all invalid emails', false);
+    });
+
+    delAllWrap.querySelector('#emails-delete-all-btn').addEventListener('click', function(){
+      be.forEach(function(e){ e.action = 'delete'; });
+      emailInner.querySelectorAll('.email-action-sel').forEach(function(s){ s.value = 'delete'; });
+      emailInner.querySelectorAll('.email-input').forEach(function(i){ i.style.display = 'none'; });
+      showToast('All rows with invalid emails will be deleted on Apply', false);
     });
   }
   emailBody.appendChild(emailInner);
@@ -892,23 +954,39 @@ function applyClean() {
 
   var headers  = sel.values[0];
   var dataRows = sel.values.slice(1).map(function(r){ return r.slice(); });
+  /* tag every row with its original index so later steps (email fix/delete)
+     can find the right row even after blanks/dupes have filtered dataRows */
+  dataRows.forEach(function(row, i){ row.__origIdx = i; });
 
-  /* 1. fill blanks */
+  /* 1. blanks — delete rows for columns set to 'delete', fill the rest */
+  var blankRowsToDelete = new Set();
   Object.entries(issues.blankCols).forEach(function(entry) {
-    var j = entry[0];
-    var inp = document.querySelector('.blank-col-row .p-inp[data-col="' + j + '"]');
-    var fillVal = inp ? inp.value : defaultVal(entry[1].type);
-    dataRows.forEach(function(row) {
-      if (row[j] === null || row[j] === undefined || row[j].toString().trim() === '') row[j] = fillVal;
-    });
+    var j = entry[0], col = entry[1];
+    if (col.action === 'delete') {
+      /* mark every row that's blank in this column for deletion */
+      dataRows.forEach(function(row, i) {
+        var v = row[j];
+        if (v === null || v === undefined || v.toString().trim() === '') blankRowsToDelete.add(i);
+      });
+    } else {
+      var inp = document.querySelector('.blanks-fill-inp[data-col="' + j + '"]');
+      var fillVal = inp ? inp.value : defaultVal(col.type);
+      dataRows.forEach(function(row) {
+        if (row[j] === null || row[j] === undefined || row[j].toString().trim() === '') row[j] = fillVal;
+      });
+    }
   });
+  if (blankRowsToDelete.size) {
+    dataRows = dataRows.filter(function(_, i){ return !blankRowsToDelete.has(i); });
+  }
 
-  /* 2. remove checked dupes */
+  /* 2. remove checked dupes — match by __origIdx, not array position,
+     since blanks-delete above may have already shifted array positions */
   var dupeIdxToRemove = new Set();
   document.querySelectorAll('.dupe-cb:checked').forEach(function(cb) {
     dupeIdxToRemove.add(issues.dupes[+cb.dataset.idx].rowIndex - 2);
   });
-  dataRows = dataRows.filter(function(_, i){ return !dupeIdxToRemove.has(i); });
+  dataRows = dataRows.filter(function(row){ return !dupeIdxToRemove.has(row.__origIdx); });
 
   /* 3. formatting — apply per-column control based on issue type */
   /* collect Excel number format strings to apply after writing */
@@ -919,7 +997,7 @@ function applyClean() {
     var jNum = +j;
 
     if (col.issueType === 'casing') {
-      var mode = col.chosenCasing || 'title';
+      var mode = col.chosenCasing || (col.type === 'email' ? 'keep' : 'title');
       if (mode === 'keep') return;
       dataRows.forEach(function(row) {
         var v = row[jNum];
@@ -977,13 +1055,25 @@ function applyClean() {
   });
 
 
-  /* 4. fix emails */
+  /* 4. fix / delete emails — use __origIdx so this still works even though
+     dataRows has already been filtered by the blanks/dupes steps above */
+  var emailRowsToDelete = new Set();
+  (issues.badEmails || []).forEach(function(e) {
+    if (e.action === 'delete') emailRowsToDelete.add(e.rowIndex - 2);
+  });
+  if (emailRowsToDelete.size) {
+    dataRows = dataRows.filter(function(row){ return !emailRowsToDelete.has(row.__origIdx); });
+  }
   document.querySelectorAll('.email-input').forEach(function(inp) {
     var idx = +inp.dataset.idx;
     var e = issues.badEmails[idx];
-    var dataIdx = e.rowIndex - 2;
-    if (dataRows[dataIdx] !== undefined) dataRows[dataIdx][e.colIdx] = inp.value;
+    if (e.action === 'delete') return; /* already removed above */
+    var origIdx = e.rowIndex - 2;
+    var row = dataRows.find(function(r){ return r.__origIdx === origIdx; });
+    if (row) row[e.colIdx] = inp.value;
   });
+  /* strip the helper property before writing to Excel */
+  dataRows.forEach(function(row){ delete row.__origIdx; });
 
   var cleanedData = [headers].concat(dataRows);
 
