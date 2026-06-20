@@ -1215,30 +1215,37 @@ function applyClean() {
       origRange.values = annotatedData;
       os.getRangeByIndexes(0, 0, 1, nCols).format.font.bold = true;
 
-      /* highlight changed cells — amber */
-      cellChanges.forEach(function(c) {
-        var cell = os.getCell(c.origRowIdx + 1, c.colIdx); /* +1 for header row */
-        cell.format.fill.color = '#FFE9A8';
-        cell.format.font.color = '#5C4400';
+      /* sync the writes before touching formats — avoids Excel API ordering issues
+         when reading back ranges that were just created/populated in the same batch */
+      return ctx.sync().then(function() {
+        /* highlight changed cells — amber (bounds-checked) */
+        cellChanges.forEach(function(c) {
+          if (c.origRowIdx < 0 || c.origRowIdx >= annotatedData.length - 1) return;
+          if (c.colIdx < 0 || c.colIdx >= nCols) return;
+          var cell = os.getCell(c.origRowIdx + 1, c.colIdx); /* +1 for header row */
+          cell.format.fill.color = '#FFE9A8';
+          cell.format.font.color = '#5C4400';
+        });
+        /* highlight deleted rows — red, full row (bounds-checked against actual row count) */
+        Object.keys(deletedRows).forEach(function(idxStr) {
+          var idx = +idxStr;
+          if (idx < 0 || idx >= annotatedData.length - 1) return; /* safety guard */
+          var rowRange = os.getCell(idx + 1, 0).getResizedRange(0, nCols - 1);
+          rowRange.format.fill.color = '#FFD2D2';
+          rowRange.format.font.color = '#7A1F1F';
+          rowRange.format.font.strikethrough = true;
+        });
+        os.getRangeByIndexes(0, 0, annotatedData.length, nCols).format.autofitColumns();
+        ns.activate();
+        return ctx.sync();
       });
-      /* highlight deleted rows — red, full row */
-      Object.keys(deletedRows).forEach(function(idxStr) {
-        var idx = +idxStr;
-        var rowRange = os.getCell(idx + 1, 0).getResizedRange(0, nCols - 1);
-        rowRange.format.fill.color = '#FFD2D2';
-        rowRange.format.font.color = '#7A1F1F';
-        rowRange.format.font.strikethrough = true;
-      });
-      os.getRangeByIndexes(0, 0, annotatedData.length, nCols).format.autofitColumns();
-      ns.activate();
-
-      return ctx.sync();
     });
   }).then(function() {
     renderSummary(summary, cellChanges, deletedRows, headers, cleanedData.length - 1);
     show('step3');
   }).catch(function(e) {
-    showToast(e.message, true);
+    console.error('applyClean error:', e);
+    showToast(e.message || 'Something went wrong creating the sheets.', true);
   }).finally(function() {
     btn.disabled = false; btn.textContent = 'Apply & create cleaned sheet';
   });
