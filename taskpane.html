@@ -2697,7 +2697,7 @@ function showToast(msg, err) {
     <button class="back-btn" onclick="goHome()"><i class="ti ti-arrow-left"></i></button>
     <div>
       <div class="panel-title">Add from Sheet</div>
-      <div class="panel-sub">Step 1 of 2 — Add one or more sources</div>
+      <div class="panel-sub">Step 1 of 2 — Pick sheets to pull from</div>
     </div>
   </div>
   <div class="panel-body" style="gap:12px">
@@ -2709,35 +2709,11 @@ function showToast(msg, err) {
       <div style="font-size:10px;color:var(--t3);margin-top:2px" id="afs-sel-info"></div>
     </div>
 
-    <!-- Added sources list -->
-    <div id="afs-sources-list" style="display:flex;flex-direction:column;gap:6px"></div>
-
-    <!-- Option A: from a sheet in this workbook -->
-    <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Add from a sheet in this file</div>
-    <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:11px 13px;display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;gap:8px">
-        <select class="p-sel" id="afs-sheet-sel" style="flex:1;font-size:11px"></select>
-        <button class="tb-btn" onclick="afsLoadSheet()" style="padding:5px 10px;white-space:nowrap;font-size:11px"><i class="ti ti-plus"></i> Add Sheet</button>
-      </div>
+    <!-- Sheet checklist -->
+    <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Sheets in this file — tick to include</div>
+    <div id="afs-sheet-checklist" style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:4px 0;display:flex;flex-direction:column">
+      <div style="padding:14px;font-size:11px;color:var(--t4)">Loading sheets…</div>
     </div>
-
-    <div style="display:flex;align-items:center;gap:10px">
-      <div style="height:1px;background:var(--b1);flex:1"></div>
-      <span style="font-size:10px;color:var(--t4);text-transform:uppercase;font-weight:700">OR</span>
-      <div style="height:1px;background:var(--b1);flex:1"></div>
-    </div>
-
-    <!-- Option B: upload files -->
-    <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Add from uploaded files</div>
-    <div id="afs-drop-zone" style="border:2px dashed var(--b2);border-radius:8px;padding:18px;text-align:center;cursor:pointer;transition:all .15s"
-      onclick="document.getElementById('afs-file-inp').click()"
-      ondragover="event.preventDefault();this.style.borderColor='var(--acc)';this.style.background='var(--acc-bg)'"
-      ondragleave="this.style.borderColor='var(--b2)';this.style.background=''"
-      ondrop="event.preventDefault();this.style.borderColor='var(--b2)';this.style.background='';afsHandleDrop(event)">
-      <i class="ti ti-file-spreadsheet" style="font-size:22px;color:var(--t4);display:block;margin-bottom:5px"></i>
-      <p style="font-size:11px;color:var(--t3)">Click to browse or drag &amp; drop<br><span style="font-size:10px;color:var(--t4)">CSV, XLSX, XLS — multiple files OK</span></p>
-    </div>
-    <input type="file" id="afs-file-inp" accept=".csv,.xlsx,.xls" multiple style="display:none" onchange="afsHandleFiles(this)">
 
   </div>
   <div class="panel-footer">
@@ -2975,126 +2951,98 @@ function openAddFromSheet() {
     (sel.rowCount - 1) + ' data row' + (sel.rowCount !== 2 ? 's' : '') + ' · ' +
     sel.columnCount + ' col' + (sel.columnCount !== 1 ? 's' : '');
   document.getElementById('afs-next-btn').disabled = true;
-  document.getElementById('afs-result') && (document.getElementById('afs-result').style.display = 'none');
+  var resEl = document.getElementById('afs-result');
+  if (resEl) resEl.style.display = 'none';
 
-  afsRenderSourceList();
+  /* Build sheet checklist */
+  var checklist = document.getElementById('afs-sheet-checklist');
+  checklist.innerHTML = '<div style="padding:14px;font-size:11px;color:var(--t4)">Loading sheets…</div>';
 
-  /* Populate sheet selector */
   Excel.run(function(ctx) {
     var sheets = ctx.workbook.worksheets;
     sheets.load('items/name');
     return ctx.sync().then(function() {
-      document.getElementById('afs-sheet-sel').innerHTML =
-        sheets.items.map(function(s, i){
-          return '<option value="' + i + '">' + escHtml(s.name) + '</option>';
-        }).join('');
+      if (!sheets.items.length) {
+        checklist.innerHTML = '<div style="padding:14px;font-size:11px;color:var(--t4)">No sheets found.</div>';
+        return;
+      }
+      checklist.innerHTML = sheets.items.map(function(s, i) {
+        return '<label style="display:flex;align-items:center;gap:10px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--b1);transition:background .12s" ' +
+          'onmouseenter="this.style.background=\'var(--s2)\'" onmouseleave="this.style.background=\'\'">' +
+          '<input type="checkbox" class="afs-sheet-cb" value="' + i + '" style="accent-color:var(--acc);width:15px;height:15px;flex-shrink:0" onchange="afsUpdateNextBtn()">' +
+          '<i class="ti ti-table" style="color:var(--t4);font-size:14px;flex-shrink:0"></i>' +
+          '<span style="font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(s.name) + '</span>' +
+        '</label>';
+      }).join('').replace(/border-bottom:1px solid var\(--b1\)(?=[^>]*>(?:(?!<label).)*$)/,'');
+      /* remove border from last row */
+      var labels = checklist.querySelectorAll('label');
+      if (labels.length) labels[labels.length-1].style.borderBottom = 'none';
     });
-  }).catch(function(){});
+  }).catch(function(){ checklist.innerHTML = '<div style="padding:14px;font-size:11px;color:var(--red)">Could not load sheets.</div>'; });
 
   show('afs-step1');
 }
 
-/* ── Render source list (step 1) ── */
-function afsRenderSourceList() {
-  var list = document.getElementById('afs-sources-list');
-  if (!afsState.sources.length) { list.innerHTML = ''; return; }
-  list.innerHTML = afsState.sources.map(function(src, si) {
-    return '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px">' +
-      '<i class="ti ti-table" style="color:var(--acc);font-size:15px;flex-shrink:0"></i>' +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(src.name) + '</div>' +
-        '<div style="font-size:10px;color:var(--t3);margin-top:1px">' + src.rows.length + ' rows · ' + src.headers.length + ' columns</div>' +
-      '</div>' +
-      '<button onclick="afsRemoveSource(' + si + ')" style="background:none;border:none;color:var(--t4);cursor:pointer;font-size:15px;padding:2px 4px;border-radius:4px;flex-shrink:0"><i class="ti ti-x"></i></button>' +
-    '</div>';
-  }).join('');
-  document.getElementById('afs-next-btn').disabled = afsState.sources.length === 0;
+function afsUpdateNextBtn() {
+  var checked = document.querySelectorAll('.afs-sheet-cb:checked').length;
+  document.getElementById('afs-next-btn').disabled = checked === 0;
+  document.getElementById('afs-next-btn').textContent =
+    checked === 0 ? 'Next — Configure mapping' :
+    'Next — Configure ' + checked + ' sheet' + (checked > 1 ? 's' : '');
 }
 
-function afsRemoveSource(idx) {
-  afsState.sources.splice(idx, 1);
-  afsRenderSourceList();
-}
+/* ── Go to Step 2: load data from checked sheets, then build accordions ── */
+function afsGoStep2() {
+  var checked = Array.from(document.querySelectorAll('.afs-sheet-cb:checked'));
+  if (!checked.length) { showToast('Tick at least one sheet first.', true); return; }
+  var sheetIndices = checked.map(function(cb){ return parseInt(cb.value); });
+  var sheetNames   = checked.map(function(cb){
+    var lbl = cb.closest('label');
+    return lbl ? lbl.querySelector('span').textContent : 'Sheet ' + cb.value;
+  });
 
-function afsAddSource(name, headers, rows) {
-  if (afsState.sources.some(function(s){ return s.name === name; })) {
-    showToast('"' + name + '" already added.', false); return;
-  }
-  afsState.sources.push({ name: name, headers: headers, rows: rows });
-  afsRenderSourceList();
-  showToast('Added: ' + name, false);
-}
+  /* Disable Next while loading */
+  var nextBtn = document.getElementById('afs-next-btn');
+  nextBtn.disabled = true; nextBtn.textContent = 'Loading…';
 
-/* ── Load a sheet from the workbook ── */
-function afsLoadSheet() {
-  var selEl = document.getElementById('afs-sheet-sel');
-  var idx = parseInt(selEl.value);
-  if (isNaN(idx)) return;
-  var sheetName = selEl.options[selEl.selectedIndex].textContent;
-
+  /* Load each checked sheet's data */
   Excel.run(function(ctx) {
     var sheets = ctx.workbook.worksheets;
     sheets.load('items/name');
     return ctx.sync().then(function() {
-      if (idx >= sheets.items.length) { showToast('Sheet not found.', true); return; }
-      var ws = sheets.items[idx];
-      var usedRange = ws.getUsedRange();
-      usedRange.load(['values','rowCount','columnCount']);
+      var toLoad = sheetIndices.map(function(idx, pos) {
+        var ws = sheets.items[idx];
+        var rng = ws.getUsedRange();
+        rng.load(['values','rowCount','columnCount']);
+        return { rng: rng, name: sheetNames[pos] };
+      });
       return ctx.sync().then(function() {
-        if (!usedRange.rowCount) { showToast('That sheet is empty.', true); return; }
-        var headers = usedRange.values[0].map(function(h){ return String(h||''); });
-        var rows    = usedRange.values.slice(1);
-        afsAddSource(sheetName, headers, rows);
+        afsState.sources = [];
+        toLoad.forEach(function(item) {
+          if (!item.rng.rowCount) return;
+          afsState.sources.push({
+            name:    item.name,
+            headers: item.rng.values[0].map(function(h){ return String(h||''); }),
+            rows:    item.rng.values.slice(1)
+          });
+        });
+        if (!afsState.sources.length) {
+          showToast('All selected sheets are empty.', true);
+          nextBtn.disabled = false; afsUpdateNextBtn();
+          return;
+        }
+        _afsRenderStep2();
       });
     });
-  }).catch(function(e){ showToast(e.message, true); });
+  }).catch(function(e){
+    showToast(e.message || 'Failed to load sheets.', true);
+    nextBtn.disabled = false; afsUpdateNextBtn();
+  });
 }
 
-/* ── Upload files ── */
-function afsHandleDrop(e) {
-  Array.from(e.dataTransfer.files).forEach(function(f){ afsParseFile(f); });
-}
-function afsHandleFiles(inp) {
-  Array.from(inp.files).forEach(function(f){ afsParseFile(f); });
-  inp.value = '';
-}
-
-function afsParseFile(file) {
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      var data = new Uint8Array(e.target.result);
-      function parse(data, name) {
-        var wb   = XLSX.read(data, { type: 'array' });
-        var ws   = wb.Sheets[wb.SheetNames[0]];
-        var arr  = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-        if (!arr.length) { showToast('File is empty: ' + name, true); return; }
-        var headers = arr[0].map(function(h){ return String(h||'').trim(); });
-        var rows    = arr.slice(1).map(function(r){
-          return headers.map(function(_, ci){ return r[ci] !== undefined ? r[ci] : ''; });
-        });
-        afsAddSource(name, headers, rows);
-      }
-      if (typeof XLSX === 'undefined') {
-        var s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-        s.onload = function(){ parse(data, file.name); };
-        document.head.appendChild(s);
-      } else { parse(data, file.name); }
-    } catch(err) { showToast('Could not read: ' + file.name, true); }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-/* ── Go to Step 2 — build per-source accordions ── */
-function afsGoStep2() {
-  if (!afsState.sources.length) { showToast('Add at least one source first.', true); return; }
-
-  var mode = 'rows'; /* default */
-  var modeEl = document.querySelector('input[name="afs-mode"]:checked');
-  if (modeEl) mode = modeEl.value;
-
-  var myOpts = afsState.myHeaders.map(function(h,i){
+/* ── Render Step 2 accordion (called after sources are loaded) ── */
+function _afsRenderStep2() {
+  var myOpts = afsState.myHeaders.map(function(h){
     return '<option value="' + escHtml(h) + '">' + escHtml(h) + '</option>';
   }).join('');
 
