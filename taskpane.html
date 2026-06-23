@@ -2697,7 +2697,7 @@ function showToast(msg, err) {
     <button class="back-btn" onclick="goHome()"><i class="ti ti-arrow-left"></i></button>
     <div>
       <div class="panel-title">Add from Sheet</div>
-      <div class="panel-sub">Step 1 of 2 — Choose source data</div>
+      <div class="panel-sub">Step 1 of 2 — Add one or more sources</div>
     </div>
   </div>
   <div class="panel-body" style="gap:12px">
@@ -2709,13 +2709,15 @@ function showToast(msg, err) {
       <div style="font-size:10px;color:var(--t3);margin-top:2px" id="afs-sel-info"></div>
     </div>
 
+    <!-- Added sources list -->
+    <div id="afs-sources-list" style="display:flex;flex-direction:column;gap:6px"></div>
+
     <!-- Option A: from a sheet in this workbook -->
-    <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Option A — From a sheet in this file</div>
+    <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Add from a sheet in this file</div>
     <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:11px 13px;display:flex;flex-direction:column;gap:8px">
-      <div style="font-size:10.5px;color:var(--t3)">Select the sheet you want to pull data from</div>
       <div style="display:flex;gap:8px">
         <select class="p-sel" id="afs-sheet-sel" style="flex:1;font-size:11px"></select>
-        <button class="tb-btn" onclick="afsLoadSheet()" style="padding:5px 10px;white-space:nowrap;font-size:11px"><i class="ti ti-crosshair"></i> Use Sheet</button>
+        <button class="tb-btn" onclick="afsLoadSheet()" style="padding:5px 10px;white-space:nowrap;font-size:11px"><i class="ti ti-plus"></i> Add Sheet</button>
       </div>
     </div>
 
@@ -2725,20 +2727,17 @@ function showToast(msg, err) {
       <div style="height:1px;background:var(--b1);flex:1"></div>
     </div>
 
-    <!-- Option B: upload a file -->
-    <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Option B — Upload a file</div>
+    <!-- Option B: upload files -->
+    <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Add from uploaded files</div>
     <div id="afs-drop-zone" style="border:2px dashed var(--b2);border-radius:8px;padding:18px;text-align:center;cursor:pointer;transition:all .15s"
       onclick="document.getElementById('afs-file-inp').click()"
       ondragover="event.preventDefault();this.style.borderColor='var(--acc)';this.style.background='var(--acc-bg)'"
       ondragleave="this.style.borderColor='var(--b2)';this.style.background=''"
       ondrop="event.preventDefault();this.style.borderColor='var(--b2)';this.style.background='';afsHandleDrop(event)">
-      <i class="ti ti-file-spreadsheet" style="font-size:24px;color:var(--t4);display:block;margin-bottom:6px"></i>
-      <p style="font-size:11px;color:var(--t3)">Click to browse or drag &amp; drop<br><span style="font-size:10px;color:var(--t4)">CSV, XLSX, XLS</span></p>
+      <i class="ti ti-file-spreadsheet" style="font-size:22px;color:var(--t4);display:block;margin-bottom:5px"></i>
+      <p style="font-size:11px;color:var(--t3)">Click to browse or drag &amp; drop<br><span style="font-size:10px;color:var(--t4)">CSV, XLSX, XLS — multiple files OK</span></p>
     </div>
-    <input type="file" id="afs-file-inp" accept=".csv,.xlsx,.xls" style="display:none" onchange="afsHandleFile(this)">
-
-    <!-- Loaded source indicator -->
-    <div id="afs-source-info" style="display:none;background:var(--green-bg);border:1px solid var(--green-b);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--green)"></div>
+    <input type="file" id="afs-file-inp" accept=".csv,.xlsx,.xls" multiple style="display:none" onchange="afsHandleFiles(this)">
 
   </div>
   <div class="panel-footer">
@@ -2768,64 +2767,35 @@ function showToast(msg, err) {
       </label>
     </div>
 
-    <!-- Row selection (shown in rows mode) -->
+    <!-- Row selection — shared for all sources (rows mode) -->
     <div id="afs-row-opts-wrap">
-      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Which rows to add</div>
+      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Which rows to add (applies to all sources)</div>
       <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:11px 13px;display:flex;flex-direction:column;gap:7px">
-        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);cursor:pointer"><input type="radio" class="rso-radio" name="afs-row-sel" value="all" checked style="accent-color:var(--acc)"> All rows</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);cursor:pointer"><input type="radio" name="afs-row-sel" value="all" checked style="accent-color:var(--acc)"> All rows</label>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="radio" class="rso-radio" name="afs-row-sel" value="first" style="accent-color:var(--acc)">
+          <input type="radio" name="afs-row-sel" value="first" style="accent-color:var(--acc)">
           <span style="font-size:12px;color:var(--t2)">First</span>
-          <input class="p-inp" id="afs-rso-first" value="10" type="number" min="1" style="width:60px">
+          <input class="p-inp" id="afs-rso-first" value="10" type="number" min="1" style="width:55px">
           <span style="font-size:12px;color:var(--t2)">rows</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="radio" class="rso-radio" name="afs-row-sel" value="last" style="accent-color:var(--acc)">
+          <input type="radio" name="afs-row-sel" value="last" style="accent-color:var(--acc)">
           <span style="font-size:12px;color:var(--t2)">Last</span>
-          <input class="p-inp" id="afs-rso-last" value="10" type="number" min="1" style="width:60px">
+          <input class="p-inp" id="afs-rso-last" value="10" type="number" min="1" style="width:55px">
           <span style="font-size:12px;color:var(--t2)">rows</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="radio" class="rso-radio" name="afs-row-sel" value="range" style="accent-color:var(--acc)">
+          <input type="radio" name="afs-row-sel" value="range" style="accent-color:var(--acc)">
           <span style="font-size:12px;color:var(--t2)">Rows</span>
-          <input class="p-inp" id="afs-rso-from" value="1" type="number" min="1" style="width:60px">
+          <input class="p-inp" id="afs-rso-from" value="1" type="number" min="1" style="width:55px">
           <span style="font-size:12px;color:var(--t2)">to</span>
-          <input class="p-inp" id="afs-rso-to" value="5" type="number" min="1" style="width:60px">
+          <input class="p-inp" id="afs-rso-to" value="5" type="number" min="1" style="width:55px">
         </div>
       </div>
     </div>
 
-    <!-- Column mapping (rows mode) -->
-    <div id="afs-map-wrap">
-      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Column mapping</div>
-      <div style="font-size:10.5px;color:var(--t3);margin-bottom:8px">Map columns from your selection (left) to columns in the source (right).</div>
-      <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:11px 13px;display:flex;flex-direction:column;gap:7px">
-        <div style="display:grid;grid-template-columns:1fr 20px 1fr 24px;gap:6px;align-items:center;margin-bottom:2px">
-          <span style="font-size:9.5px;font-weight:700;color:var(--t4);text-transform:uppercase">Your column</span>
-          <span></span>
-          <span style="font-size:9.5px;font-weight:700;color:var(--t4);text-transform:uppercase">Source column</span>
-          <span></span>
-        </div>
-        <div id="afs-map-list" style="display:flex;flex-direction:column;gap:6px"></div>
-        <button onclick="afsAddMapRow(null,null)" style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--acc);background:var(--acc-bg);border:1px solid #1e3a6e;border-radius:5px;padding:5px 10px;cursor:pointer;margin-top:2px;font-family:'IBM Plex Sans',sans-serif">
-          <i class="ti ti-plus"></i> Add mapping
-        </button>
-      </div>
-    </div>
-
-    <!-- Columns to add (cols mode) -->
-    <div id="afs-col-opts-wrap" style="display:none">
-      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Key column — match rows by</div>
-      <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:11px 13px;display:flex;flex-direction:column;gap:8px">
-        <div style="display:grid;grid-template-columns:1fr 20px 1fr;gap:6px;align-items:center">
-          <select class="p-sel" id="afs-col-join-mine" style="font-size:11px"></select>
-          <span style="text-align:center;font-size:11px;color:var(--t4)">=</span>
-          <select class="p-sel" id="afs-col-join-theirs" style="font-size:11px"></select>
-        </div>
-        <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:4px">Columns to add from source</div>
-        <div id="afs-col-check-list" style="display:flex;flex-direction:column;gap:5px"></div>
-      </div>
-    </div>
+    <!-- Per-source mapping accordions (built dynamically) -->
+    <div id="afs-sources-config" style="display:flex;flex-direction:column;gap:8px"></div>
 
     <!-- Result -->
     <div id="afs-result" style="display:none;padding:11px 13px;background:var(--green-bg);border:1px solid var(--green-b);border-radius:8px;font-size:11px;color:var(--green);line-height:1.6"></div>
@@ -2983,51 +2953,84 @@ function mfApply() {
 }
 
 /* ════════════════════════════════════════════
-   ADD FROM SHEET FEATURE
+   ADD FROM SHEET FEATURE  (multi-source)
    ════════════════════════════════════════════ */
 
 var afsState = {
-  sourceHeaders: [],
-  sourceRows: [],   /* array of arrays (row data) */
-  sourceName: '',
+  sources: [],   /* [{name, headers:[], rows:[[]]}] */
   myHeaders: [],
   myRows: []
 };
 
+/* ── Open ── */
 function openAddFromSheet() {
   if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
 
   afsState.myHeaders = sel.values[0].map(function(h){ return String(h||''); });
   afsState.myRows    = sel.values.slice(1);
-  afsState.sourceHeaders = [];
-  afsState.sourceRows    = [];
-  afsState.sourceName    = '';
+  afsState.sources   = [];
 
   document.getElementById('afs-sel-addr').textContent = sel.address;
-  document.getElementById('afs-sel-info').textContent = (sel.rowCount - 1) + ' data row' + (sel.rowCount!==1?'s':'') + ' · ' + sel.columnCount + ' col' + (sel.columnCount!==1?'s':'');
+  document.getElementById('afs-sel-info').textContent =
+    (sel.rowCount - 1) + ' data row' + (sel.rowCount !== 2 ? 's' : '') + ' · ' +
+    sel.columnCount + ' col' + (sel.columnCount !== 1 ? 's' : '');
   document.getElementById('afs-next-btn').disabled = true;
-  document.getElementById('afs-source-info').style.display = 'none';
-  document.getElementById('afs-result').style.display = 'none';
+  document.getElementById('afs-result') && (document.getElementById('afs-result').style.display = 'none');
+
+  afsRenderSourceList();
 
   /* Populate sheet selector */
   Excel.run(function(ctx) {
     var sheets = ctx.workbook.worksheets;
     sheets.load('items/name');
     return ctx.sync().then(function() {
-      var sel2 = document.getElementById('afs-sheet-sel');
-      sel2.innerHTML = sheets.items.map(function(s, i){
-        return '<option value="' + i + '">' + escHtml(s.name) + '</option>';
-      }).join('');
+      document.getElementById('afs-sheet-sel').innerHTML =
+        sheets.items.map(function(s, i){
+          return '<option value="' + i + '">' + escHtml(s.name) + '</option>';
+        }).join('');
     });
   }).catch(function(){});
 
   show('afs-step1');
 }
 
+/* ── Render source list (step 1) ── */
+function afsRenderSourceList() {
+  var list = document.getElementById('afs-sources-list');
+  if (!afsState.sources.length) { list.innerHTML = ''; return; }
+  list.innerHTML = afsState.sources.map(function(src, si) {
+    return '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px">' +
+      '<i class="ti ti-table" style="color:var(--acc);font-size:15px;flex-shrink:0"></i>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(src.name) + '</div>' +
+        '<div style="font-size:10px;color:var(--t3);margin-top:1px">' + src.rows.length + ' rows · ' + src.headers.length + ' columns</div>' +
+      '</div>' +
+      '<button onclick="afsRemoveSource(' + si + ')" style="background:none;border:none;color:var(--t4);cursor:pointer;font-size:15px;padding:2px 4px;border-radius:4px;flex-shrink:0"><i class="ti ti-x"></i></button>' +
+    '</div>';
+  }).join('');
+  document.getElementById('afs-next-btn').disabled = afsState.sources.length === 0;
+}
+
+function afsRemoveSource(idx) {
+  afsState.sources.splice(idx, 1);
+  afsRenderSourceList();
+}
+
+function afsAddSource(name, headers, rows) {
+  if (afsState.sources.some(function(s){ return s.name === name; })) {
+    showToast('"' + name + '" already added.', false); return;
+  }
+  afsState.sources.push({ name: name, headers: headers, rows: rows });
+  afsRenderSourceList();
+  showToast('Added: ' + name, false);
+}
+
+/* ── Load a sheet from the workbook ── */
 function afsLoadSheet() {
-  var idx = parseInt(document.getElementById('afs-sheet-sel').value);
+  var selEl = document.getElementById('afs-sheet-sel');
+  var idx = parseInt(selEl.value);
   if (isNaN(idx)) return;
-  var sheetName = document.getElementById('afs-sheet-sel').options[idx].textContent;
+  var sheetName = selEl.options[selEl.selectedIndex].textContent;
 
   Excel.run(function(ctx) {
     var sheets = ctx.workbook.worksheets;
@@ -3039,22 +3042,20 @@ function afsLoadSheet() {
       usedRange.load(['values','rowCount','columnCount']);
       return ctx.sync().then(function() {
         if (!usedRange.rowCount) { showToast('That sheet is empty.', true); return; }
-        afsState.sourceHeaders = usedRange.values[0].map(function(h){ return String(h||''); });
-        afsState.sourceRows    = usedRange.values.slice(1);
-        afsState.sourceName    = sheetName;
-        afsShowSourceInfo();
+        var headers = usedRange.values[0].map(function(h){ return String(h||''); });
+        var rows    = usedRange.values.slice(1);
+        afsAddSource(sheetName, headers, rows);
       });
     });
   }).catch(function(e){ showToast(e.message, true); });
 }
 
+/* ── Upload files ── */
 function afsHandleDrop(e) {
-  var files = Array.from(e.dataTransfer.files);
-  if (files.length) afsParseFile(files[0]);
+  Array.from(e.dataTransfer.files).forEach(function(f){ afsParseFile(f); });
 }
-
-function afsHandleFile(inp) {
-  if (inp.files.length) afsParseFile(inp.files[0]);
+function afsHandleFiles(inp) {
+  Array.from(inp.files).forEach(function(f){ afsParseFile(f); });
   inp.value = '';
 }
 
@@ -3064,16 +3065,15 @@ function afsParseFile(file) {
     try {
       var data = new Uint8Array(e.target.result);
       function parse(data, name) {
-        var wb = XLSX.read(data, { type: 'array' });
-        var ws = wb.Sheets[wb.SheetNames[0]];
-        var arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-        if (!arr.length) { showToast('File is empty.', true); return; }
-        afsState.sourceHeaders = arr[0].map(function(h){ return String(h||'').trim(); });
-        afsState.sourceRows    = arr.slice(1).map(function(r){
-          return afsState.sourceHeaders.map(function(_, ci){ return r[ci] !== undefined ? r[ci] : ''; });
+        var wb   = XLSX.read(data, { type: 'array' });
+        var ws   = wb.Sheets[wb.SheetNames[0]];
+        var arr  = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        if (!arr.length) { showToast('File is empty: ' + name, true); return; }
+        var headers = arr[0].map(function(h){ return String(h||'').trim(); });
+        var rows    = arr.slice(1).map(function(r){
+          return headers.map(function(_, ci){ return r[ci] !== undefined ? r[ci] : ''; });
         });
-        afsState.sourceName = name;
-        afsShowSourceInfo();
+        afsAddSource(name, headers, rows);
       }
       if (typeof XLSX === 'undefined') {
         var s = document.createElement('script');
@@ -3081,205 +3081,318 @@ function afsParseFile(file) {
         s.onload = function(){ parse(data, file.name); };
         document.head.appendChild(s);
       } else { parse(data, file.name); }
-    } catch(err) { showToast('Could not read file.', true); }
+    } catch(err) { showToast('Could not read: ' + file.name, true); }
   };
   reader.readAsArrayBuffer(file);
 }
 
-function afsShowSourceInfo() {
-  var info = document.getElementById('afs-source-info');
-  info.innerHTML = '<i class="ti ti-circle-check" style="margin-right:6px"></i>' +
-    '<strong>' + escHtml(afsState.sourceName) + '</strong> — ' +
-    afsState.sourceRows.length + ' data rows · ' + afsState.sourceHeaders.length + ' columns loaded';
-  info.style.display = 'block';
-  document.getElementById('afs-next-btn').disabled = false;
-}
-
+/* ── Go to Step 2 — build per-source accordions ── */
 function afsGoStep2() {
-  if (!afsState.sourceHeaders.length) { showToast('Please choose a source first.', true); return; }
+  if (!afsState.sources.length) { showToast('Add at least one source first.', true); return; }
 
-  /* Populate join selects for cols mode */
-  var myOpts = afsState.myHeaders.map(function(h,i){ return '<option value="'+i+'">'+escHtml(h)+'</option>'; }).join('');
-  var theirOpts = afsState.sourceHeaders.map(function(h,i){ return '<option value="'+i+'">'+escHtml(h)+'</option>'; }).join('');
-  document.getElementById('afs-col-join-mine').innerHTML = myOpts;
-  document.getElementById('afs-col-join-theirs').innerHTML = theirOpts;
+  var mode = 'rows'; /* default */
+  var modeEl = document.querySelector('input[name="afs-mode"]:checked');
+  if (modeEl) mode = modeEl.value;
 
-  /* Populate column checkboxes */
-  document.getElementById('afs-col-check-list').innerHTML = afsState.sourceHeaders.map(function(h,i){
-    return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);cursor:pointer">' +
-      '<input type="checkbox" value="'+i+'" style="accent-color:var(--acc)" checked> ' + escHtml(h) +
-    '</label>';
+  var myOpts = afsState.myHeaders.map(function(h,i){
+    return '<option value="' + escHtml(h) + '">' + escHtml(h) + '</option>';
   }).join('');
 
-  /* Build default mappings */
-  afsState.myHeaders = sel.values[0].map(function(h){ return String(h||''); });
-  document.getElementById('afs-map-list').innerHTML = '';
-  /* Auto-match by column name */
-  afsState.myHeaders.forEach(function(myH) {
-    var theirMatch = afsState.sourceHeaders.find(function(th){
-      return th.toLowerCase().trim() === myH.toLowerCase().trim();
+  var container = document.getElementById('afs-sources-config');
+  container.innerHTML = '';
+
+  afsState.sources.forEach(function(src, si) {
+    /* Auto-match columns */
+    var autoMappings = [];
+    afsState.myHeaders.forEach(function(myH) {
+      var match = src.headers.find(function(th){
+        return th.toLowerCase().trim() === myH.toLowerCase().trim();
+      });
+      if (match) autoMappings.push({ my: myH, their: match });
     });
-    if (theirMatch) afsAddMapRow(myH, theirMatch);
+    if (!autoMappings.length && src.headers.length) {
+      autoMappings.push({ my: afsState.myHeaders[0] || '', their: src.headers[0] });
+    }
+
+    var theirOpts = src.headers.map(function(h){
+      return '<option value="' + escHtml(h) + '">' + escHtml(h) + '</option>';
+    }).join('');
+
+    /* Mapping rows HTML */
+    var mapRowsHtml = autoMappings.map(function(m){
+      var mo = afsState.myHeaders.map(function(h){
+        return '<option value="' + escHtml(h) + '"' + (h === m.my ? ' selected' : '') + '>' + escHtml(h) + '</option>';
+      }).join('');
+      var to = src.headers.map(function(h){
+        return '<option value="' + escHtml(h) + '"' + (h === m.their ? ' selected' : '') + '>' + escHtml(h) + '</option>';
+      }).join('');
+      return '<div class="afs-map-row" style="display:grid;grid-template-columns:1fr 18px 1fr 22px;gap:5px;align-items:center">' +
+        '<select class="p-sel afs-mine" style="font-size:11px">' + mo + '</select>' +
+        '<span style="text-align:center;font-size:11px;color:var(--t4)">=</span>' +
+        '<select class="p-sel afs-theirs" style="font-size:11px">' + to + '</select>' +
+        '<button onclick="this.closest(\'.afs-map-row\').remove()" style="background:none;border:none;color:var(--t4);cursor:pointer;font-size:14px;padding:2px;border-radius:3px;display:flex;align-items:center;justify-content:center;height:26px"><i class="ti ti-x"></i></button>' +
+      '</div>';
+    }).join('');
+
+    /* Col check list */
+    var colCheckHtml = src.headers.map(function(h, hi){
+      return '<label style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--t2);cursor:pointer">' +
+        '<input type="checkbox" value="' + hi + '" style="accent-color:var(--acc)" checked> ' + escHtml(h) +
+      '</label>';
+    }).join('');
+
+    /* Build accordion card */
+    var card = document.createElement('div');
+    card.className = 'afs-src-card';
+    card.dataset.srcIdx = si;
+    card.style.cssText = 'background:var(--s1);border:1px solid var(--b1);border-radius:9px;overflow:hidden';
+    card.innerHTML =
+      /* Header row — always visible, click to toggle */
+      '<div class="afs-acc-hdr" onclick="afsToggleAccordion(this)" style="display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;user-select:none">' +
+        '<i class="ti ti-table" style="color:var(--acc);font-size:14px;flex-shrink:0"></i>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(src.name) + '</div>' +
+          '<div style="font-size:10px;color:var(--t3)">' + src.rows.length + ' rows · ' + src.headers.length + ' cols · ' + autoMappings.length + ' mapping' + (autoMappings.length !== 1 ? 's' : '') + ' auto-matched</div>' +
+        '</div>' +
+        '<i class="ti ti-chevron-down afs-chevron" style="color:var(--t4);font-size:14px;flex-shrink:0;transition:transform .2s"></i>' +
+      '</div>' +
+
+      /* Body — collapsible, open by default if first or only */
+      '<div class="afs-acc-body" style="padding:0 13px 12px 13px;border-top:1px solid var(--b1);' + (si === 0 ? '' : 'display:none') + '">' +
+        /* rows mode: mapping */
+        '<div class="afs-rows-section">' +
+          '<div style="font-size:9.5px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 7px">Column mapping</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 18px 1fr 22px;gap:5px;align-items:center;margin-bottom:5px">' +
+            '<span style="font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase">Your col</span>' +
+            '<span></span>' +
+            '<span style="font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase">Source col</span>' +
+            '<span></span>' +
+          '</div>' +
+          '<div class="afs-map-list" style="display:flex;flex-direction:column;gap:5px">' + mapRowsHtml + '</div>' +
+          '<button onclick="afsAddMapRowTo(this,' + si + ')" style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--acc);background:var(--acc-bg);border:1px solid #1e3a6e;border-radius:5px;padding:4px 9px;cursor:pointer;margin-top:7px;font-family:\'IBM Plex Sans\',sans-serif">' +
+            '<i class="ti ti-plus"></i> Add mapping' +
+          '</button>' +
+        '</div>' +
+        /* cols mode: key join + col checkboxes */
+        '<div class="afs-cols-section" style="display:none">' +
+          '<div style="font-size:9.5px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 7px">Key column — match rows by</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 18px 1fr;gap:5px;align-items:center;margin-bottom:9px">' +
+            '<select class="p-sel afs-join-mine" style="font-size:11px">' + myOpts + '</select>' +
+            '<span style="text-align:center;font-size:11px;color:var(--t4)">=</span>' +
+            '<select class="p-sel afs-join-theirs" style="font-size:11px">' + theirOpts + '</select>' +
+          '</div>' +
+          '<div style="font-size:9.5px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Columns to add from source</div>' +
+          '<div class="afs-col-check-list" style="display:flex;flex-direction:column;gap:4px">' + colCheckHtml + '</div>' +
+        '</div>' +
+      '</div>';
+
+    container.appendChild(card);
   });
-  /* If nothing matched, add a blank row */
-  if (!document.getElementById('afs-map-list').children.length) afsAddMapRow(null, null);
 
   document.getElementById('afs-result').style.display = 'none';
   afsUpdateMode();
   show('afs-step2');
 }
 
-function afsUpdateMode() {
-  var mode = document.querySelector('input[name="afs-mode"]:checked').value;
-  document.getElementById('afs-row-opts-wrap').style.display = mode === 'rows' ? '' : 'none';
-  document.getElementById('afs-map-wrap').style.display      = mode === 'rows' ? '' : 'none';
-  document.getElementById('afs-col-opts-wrap').style.display = mode === 'cols' ? '' : 'none';
+/* ── Accordion toggle ── */
+function afsToggleAccordion(hdr) {
+  var body    = hdr.nextElementSibling;
+  var chevron = hdr.querySelector('.afs-chevron');
+  var isOpen  = body.style.display !== 'none';
+  body.style.display    = isOpen ? 'none' : '';
+  chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
 }
 
-function afsAddMapRow(myCol, theirCol) {
-  var list = document.getElementById('afs-map-list');
+/* ── Add a blank mapping row to a specific source card ── */
+function afsAddMapRowTo(btn, si) {
+  var src  = afsState.sources[si];
+  if (!src) return;
+  var list = btn.previousElementSibling;
   var myOpts = afsState.myHeaders.map(function(h){
-    return '<option value="'+escHtml(h)+'"'+(h===myCol?' selected':'')+'>'+escHtml(h)+'</option>';
+    return '<option value="' + escHtml(h) + '">' + escHtml(h) + '</option>';
   }).join('');
-  var theirOpts = afsState.sourceHeaders.map(function(h){
-    return '<option value="'+escHtml(h)+'"'+(h===theirCol?' selected':'')+'>'+escHtml(h)+'</option>';
+  var theirOpts = src.headers.map(function(h){
+    return '<option value="' + escHtml(h) + '">' + escHtml(h) + '</option>';
   }).join('');
   var row = document.createElement('div');
-  row.style.cssText = 'display:grid;grid-template-columns:1fr 20px 1fr 24px;gap:6px;align-items:center';
+  row.className = 'afs-map-row';
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 18px 1fr 22px;gap:5px;align-items:center';
   row.innerHTML =
-    '<select class="p-sel" style="font-size:11px">'+myOpts+'</select>' +
+    '<select class="p-sel afs-mine" style="font-size:11px">' + myOpts + '</select>' +
     '<span style="text-align:center;font-size:11px;color:var(--t4)">=</span>' +
-    '<select class="p-sel" style="font-size:11px">'+theirOpts+'</select>' +
-    '<button onclick="this.closest(\'div\').remove()" style="background:none;border:none;color:var(--t4);cursor:pointer;font-size:15px;padding:2px;border-radius:4px;display:flex;align-items:center;justify-content:center;height:28px"><i class="ti ti-x"></i></button>';
+    '<select class="p-sel afs-theirs" style="font-size:11px">' + theirOpts + '</select>' +
+    '<button onclick="this.closest(\'.afs-map-row\').remove()" style="background:none;border:none;color:var(--t4);cursor:pointer;font-size:14px;padding:2px;border-radius:3px;display:flex;align-items:center;justify-content:center;height:26px"><i class="ti ti-x"></i></button>';
   list.appendChild(row);
 }
 
+/* ── Mode toggle ── */
+function afsUpdateMode() {
+  var mode = document.querySelector('input[name="afs-mode"]:checked');
+  if (!mode) return;
+  var isRows = mode.value === 'rows';
+  document.getElementById('afs-row-opts-wrap').style.display = isRows ? '' : 'none';
+  document.querySelectorAll('.afs-rows-section').forEach(function(el){ el.style.display = isRows ? '' : 'none'; });
+  document.querySelectorAll('.afs-cols-section').forEach(function(el){ el.style.display = isRows ? 'none' : ''; });
+}
+
+/* ── Apply ── */
 function afsApply() {
   var btn = document.getElementById('afs-apply-btn');
   btn.disabled = true; btn.textContent = 'Working…';
   document.getElementById('afs-result').style.display = 'none';
 
-  var mode = document.querySelector('input[name="afs-mode"]:checked').value;
+  var modeEl = document.querySelector('input[name="afs-mode"]:checked');
+  var mode = modeEl ? modeEl.value : 'rows';
 
-  /* ── Determine which source rows to use ── */
-  var rowSelVal = document.querySelector('input[name="afs-row-sel"]:checked');
-  var rowSel = rowSelVal ? rowSelVal.value : 'all';
-  var srcRows = afsState.sourceRows.slice();
-  if (rowSel === 'first') {
-    var n = parseInt(document.getElementById('afs-rso-first').value) || 10;
-    srcRows = srcRows.slice(0, n);
-  } else if (rowSel === 'last') {
-    var n2 = parseInt(document.getElementById('afs-rso-last').value) || 10;
-    srcRows = srcRows.slice(-n2);
-  } else if (rowSel === 'range') {
-    var from = (parseInt(document.getElementById('afs-rso-from').value) || 1) - 1;
-    var to   = parseInt(document.getElementById('afs-rso-to').value) || 5;
-    srcRows = srcRows.slice(from, to);
+  /* shared row selection */
+  var rowSel = (document.querySelector('input[name="afs-row-sel"]:checked') || {}).value || 'all';
+  var firstN = parseInt(document.getElementById('afs-rso-first').value) || 10;
+  var lastN  = parseInt(document.getElementById('afs-rso-last').value)  || 10;
+  var rFrom  = (parseInt(document.getElementById('afs-rso-from').value) || 1) - 1;
+  var rTo    = parseInt(document.getElementById('afs-rso-to').value)   || 5;
+
+  function sliceRows(rows) {
+    if (rowSel === 'first') return rows.slice(0, firstN);
+    if (rowSel === 'last')  return rows.slice(-lastN);
+    if (rowSel === 'range') return rows.slice(rFrom, rTo);
+    return rows.slice();
   }
 
   var outputData;
 
   if (mode === 'rows') {
-    /* ── Build column mapping: myCol → theirColIdx ── */
-    var mappings = [];
-    document.querySelectorAll('#afs-map-list > div').forEach(function(row) {
-      var sels = row.querySelectorAll('select');
-      if (sels.length >= 2) {
-        mappings.push({ myCol: sels[0].value, theirCol: sels[1].value });
-      }
-    });
+    /* ── Rows mode: collect headers union, then append rows from each source ── */
 
-    if (!mappings.length) {
-      showToast('Add at least one column mapping.', true);
-      btn.disabled = false; btn.innerHTML = '<i class="ti ti-circle-check"></i> Apply & create sheet';
-      return;
-    }
+    /* Start with all my headers */
+    var outHeaders = afsState.myHeaders.slice();
 
-    /* Build header row from "my" column names (using mapping) */
-    var outHeaders = mappings.map(function(m){ return m.myCol; });
-    var outRows = srcRows.map(function(srcRow) {
-      return mappings.map(function(m) {
-        var ci = afsState.sourceHeaders.indexOf(m.theirCol);
-        return ci >= 0 ? (srcRow[ci] !== undefined ? srcRow[ci] : '') : '';
+    /* For each source, read mappings and extend outHeaders if needed */
+    var srcMappings = []; /* [{srcIdx, mappings:[{myCol,theirCol}]}] */
+    document.querySelectorAll('.afs-src-card').forEach(function(card) {
+      var si = parseInt(card.dataset.srcIdx);
+      var src = afsState.sources[si];
+      if (!src) return;
+      var mappings = [];
+      card.querySelectorAll('.afs-map-row').forEach(function(row) {
+        var mine   = row.querySelector('.afs-mine');
+        var theirs = row.querySelector('.afs-theirs');
+        if (mine && theirs) mappings.push({ myCol: mine.value, theirCol: theirs.value });
+      });
+      srcMappings.push({ si: si, src: src, mappings: mappings });
+      /* ensure all mapped "myCol" headers exist in outHeaders */
+      mappings.forEach(function(m){
+        if (outHeaders.indexOf(m.myCol) < 0) outHeaders.push(m.myCol);
       });
     });
 
-    /* Combine: original data first, then appended rows */
-    var origRows = afsState.myRows.map(function(row){
+    if (!srcMappings.length || srcMappings.every(function(s){ return !s.mappings.length; })) {
+      showToast('Add at least one column mapping.', true);
+      btn.disabled = false; btn.innerHTML = '<i class="ti ti-circle-check"></i> Apply &amp; create sheet';
+      return;
+    }
+
+    /* Original rows (mapped to outHeaders) */
+    var origRows = afsState.myRows.map(function(row) {
       return outHeaders.map(function(h) {
         var ci = afsState.myHeaders.indexOf(h);
-        return ci >= 0 ? (row[ci] !== undefined ? row[ci] : '') : '';
+        return ci >= 0 && row[ci] !== undefined ? row[ci] : '';
       });
     });
 
-    outputData = [outHeaders].concat(origRows).concat(outRows);
+    /* Source rows (each source mapped to outHeaders) */
+    var allSrcRows = [];
+    srcMappings.forEach(function(sm) {
+      var sliced = sliceRows(sm.src.rows);
+      sliced.forEach(function(srcRow) {
+        var outRow = outHeaders.map(function(){ return ''; });
+        sm.mappings.forEach(function(m) {
+          var outIdx  = outHeaders.indexOf(m.myCol);
+          var srcIdx  = sm.src.headers.indexOf(m.theirCol);
+          if (outIdx >= 0 && srcIdx >= 0 && srcRow[srcIdx] !== undefined) {
+            outRow[outIdx] = srcRow[srcIdx];
+          }
+        });
+        allSrcRows.push(outRow);
+      });
+    });
+
+    outputData = [outHeaders].concat(origRows).concat(allSrcRows);
 
   } else {
-    /* ── Columns mode: join on key column ── */
-    var myJoinIdx    = parseInt(document.getElementById('afs-col-join-mine').value) || 0;
-    var theirJoinIdx = parseInt(document.getElementById('afs-col-join-theirs').value) || 0;
+    /* ── Columns mode: join each source's columns onto myRows ── */
+    var workingHeaders = afsState.myHeaders.slice();
+    var workingRows    = afsState.myRows.map(function(r){ return r.slice(); });
 
-    /* Which source columns to add? */
-    var colsToAdd = [];
-    document.querySelectorAll('#afs-col-check-list input[type=checkbox]:checked').forEach(function(cb) {
-      var ci = parseInt(cb.value);
-      colsToAdd.push({ header: afsState.sourceHeaders[ci], idx: ci });
+    document.querySelectorAll('.afs-src-card').forEach(function(card) {
+      var si = parseInt(card.dataset.srcIdx);
+      var src = afsState.sources[si];
+      if (!src) return;
+
+      var myJoinCol    = (card.querySelector('.afs-join-mine')   || {}).value || workingHeaders[0] || '';
+      var theirJoinCol = (card.querySelector('.afs-join-theirs') || {}).value || src.headers[0]    || '';
+      var myJoinIdx    = workingHeaders.indexOf(myJoinCol);
+      var theirJoinIdx = src.headers.indexOf(theirJoinCol);
+
+      var colsToAdd = [];
+      card.querySelectorAll('.afs-col-check-list input[type=checkbox]:checked').forEach(function(cb) {
+        var ci = parseInt(cb.value);
+        colsToAdd.push({ header: src.headers[ci], idx: ci });
+      });
+      if (!colsToAdd.length) return;
+
+      /* Build lookup from source */
+      var lookup = {};
+      sliceRows(src.rows).forEach(function(row) {
+        var k = String(row[theirJoinIdx] !== undefined ? row[theirJoinIdx] : '').trim().toLowerCase();
+        if (k) lookup[k] = row;
+      });
+
+      /* Append col headers */
+      colsToAdd.forEach(function(c){ workingHeaders.push(c.header); });
+
+      /* Append col values to each working row */
+      workingRows = workingRows.map(function(wRow) {
+        var k = String(wRow[myJoinIdx] !== undefined ? wRow[myJoinIdx] : '').trim().toLowerCase();
+        var srcRow = lookup[k] || [];
+        return wRow.concat(colsToAdd.map(function(c){ return srcRow[c.idx] !== undefined ? srcRow[c.idx] : ''; }));
+      });
     });
 
-    if (!colsToAdd.length) {
-      showToast('Select at least one column to add.', true);
-      btn.disabled = false; btn.innerHTML = '<i class="ti ti-circle-check"></i> Apply & create sheet';
-      return;
-    }
-
-    /* Build lookup: source join key → {colHeader: value} */
-    var srcLookup = {};
-    srcRows.forEach(function(row) {
-      var k = String(row[theirJoinIdx] !== undefined ? row[theirJoinIdx] : '').trim().toLowerCase();
-      if (k) srcLookup[k] = row;
-    });
-
-    /* Build new headers: my headers + new col headers */
-    var newHeaders = afsState.myHeaders.concat(colsToAdd.map(function(c){ return c.header; }));
-
-    var newRows = afsState.myRows.map(function(myRow) {
-      var k = String(myRow[myJoinIdx] !== undefined ? myRow[myJoinIdx] : '').trim().toLowerCase();
-      var srcRow = srcLookup[k] || [];
-      var addedVals = colsToAdd.map(function(c){ return srcRow[c.idx] !== undefined ? srcRow[c.idx] : ''; });
-      return myRow.concat(addedVals);
-    });
-
-    outputData = [newHeaders].concat(newRows);
+    outputData = [workingHeaders].concat(workingRows);
   }
 
   /* ── Write to new sheet ── */
+  var srcNames = afsState.sources.map(function(s){ return s.name; }).join(', ').slice(0, 20);
   Excel.run(function(ctx) {
     var sheets = ctx.workbook.worksheets;
     sheets.load('items/name');
     return ctx.sync().then(function() {
       var existing = sheets.items.map(function(s){ return s.name; });
-      var baseName = 'Merged — ' + afsState.sourceName.slice(0, 20);
+      var baseName = ('Merged — ' + srcNames).slice(0, 31);
       var name = baseName, n = 1;
-      while (existing.indexOf(name) >= 0) name = baseName + ' ' + (n++);
+      while (existing.indexOf(name) >= 0) name = (baseName.slice(0,28) + ' ' + (n++));
 
       var ws = sheets.add(name);
       ws.activate();
-      var range = ws.getCell(0, 0).getResizedRange(outputData.length - 1, outputData[0].length - 1);
-      range.values = outputData.map(function(row){
+      var safeData = outputData.map(function(row){
         return row.map(function(v){ return v === null || v === undefined ? '' : v; });
       });
-      ws.getRangeByIndexes(0, 0, 1, outputData[0].length).format.font.bold = true;
+      var range = ws.getCell(0,0).getResizedRange(safeData.length - 1, safeData[0].length - 1);
+      range.values = safeData;
+      ws.getRangeByIndexes(0,0,1,safeData[0].length).format.font.bold = true;
       range.format.autofitColumns();
       return ctx.sync().then(function() {
         var addedRows = outputData.length - 1;
         var el = document.getElementById('afs-result');
         el.innerHTML = '<i class="ti ti-circle-check" style="margin-right:6px"></i>' +
-          '<strong>' + addedRows + ' row' + (addedRows!==1?'s':'') + '</strong> written to sheet <strong>' + escHtml(name) + '</strong>.';
+          '<strong>' + addedRows + ' row' + (addedRows !== 1 ? 's' : '') + '</strong>' +
+          (mode === 'cols' ? ' · <strong>' + (outputData[0].length - afsState.myHeaders.length) + ' new col' + (outputData[0].length - afsState.myHeaders.length !== 1 ? 's' : '') + '</strong>' : '') +
+          ' written to <strong>' + escHtml(name) + '</strong>.';
         el.style.display = 'block';
         showToast('✓ Written to "' + name + '"', false);
       });
     });
-  }).catch(function(e){ showToast(e.message || 'Failed to write sheet.', true); })
+  }).catch(function(e){ showToast(e.message || 'Failed to write.', true); })
   .finally(function(){
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-circle-check"></i> Apply &amp; create sheet';
