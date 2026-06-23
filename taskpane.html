@@ -324,8 +324,40 @@ var colTypes  = [];
 var issues    = null;
 var fmtColKeys = [];   // kept in module scope so add-col can update
 
+/* ════ ANALYTICS ════ */
+var _tid = (function() {
+  try {
+    var k = 'mxt_uid';
+    var id = localStorage.getItem(k);
+    if (!id) {
+      id = 'u_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+      localStorage.setItem(k, id);
+    }
+    return id;
+  } catch(e) { return 'u_' + Math.random().toString(36).slice(2,10); }
+})();
+var _sid    = 's_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+var _sStart = Date.now();
+var _TU     = 'https://script.google.com/macros/s/AKfycby0gInL2oXQ5SdpuIYmy4GDFgsfLkrfFRX-yu51VOtUgU4BMyGROuG1cGu7esKRX__q/exec';
+
+function track(event, detail) {
+  try {
+    fetch(_TU, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: _tid, session_id: _sid, event: event, detail: detail || '' })
+    });
+  } catch(e) { /* silent */ }
+}
+
+window.addEventListener('beforeunload', function() {
+  track('session_end', 'duration: ' + Math.round((Date.now() - _sStart) / 1000) + 's');
+});
+
 /* ════ OFFICE READY ════ */
 Office.onReady(function() {
+  track('session_start', '');
   document.getElementById('refresh-btn').addEventListener('click', readSel);
   document.querySelectorAll('.feature-btn').forEach(function(b) {
     b.addEventListener('click', function(){ handleFeature(b.dataset.feature); });
@@ -1278,6 +1310,7 @@ function applyClean() {
     });
   }).then(function() {
     renderSummary(summary, cellChanges, deletedRows, headers, cleanedData.length - 1);
+    track('clean_complete', cellChanges.length + ' cells changed · ' + Object.keys(deletedRows).length + ' rows removed · ' + (cleanedData.length - 1) + ' rows remain');
     show('step3');
   }).catch(function(e) {
     console.error('applyClean error:', e);
@@ -1722,6 +1755,7 @@ function showResult(html) {
   var el = document.getElementById('cmp-result-msg');
   el.innerHTML = html;
   el.style.display = 'block';
+  track('compare_complete', 'mode: ' + (cmpState.mode || 'unknown'));
 }
 
 function writeNewSheet(baseName, data, onSuccess, onFail) {
@@ -2353,6 +2387,7 @@ function applyBulk() {
           '<strong>' + totalChanged + ' cell' + (totalChanged!==1?'s':'') + ' updated</strong> — written to sheet <strong>' + name + '</strong>.';
         el.style.display = 'block';
         showToast('✓ ' + totalChanged + ' cells updated → ' + name, false);
+        track('bulk_complete', totalChanged + ' cells updated · sheet: ' + name);
       });
     });
   }).catch(function(e){ showToast(e.message, true); })
@@ -2918,6 +2953,7 @@ function mfApply() {
     el.innerHTML = '<i class="ti ti-circle-check" style="margin-right:6px"></i><strong>' + totalSheets + ' sheet' + (totalSheets!==1?'s':'') + ' added</strong> from ' + mfFiles.length + ' file' + (mfFiles.length!==1?'s':'') + '.';
     el.style.display = 'block';
     showToast('✓ ' + totalSheets + ' sheet' + (totalSheets!==1?'s':'') + ' added', false);
+    track('merge_complete', totalSheets + ' sheets from ' + mfFiles.length + ' file' + (mfFiles.length!==1?'s':''));
     mfFiles = [];
     renderMfFileList();
   }).catch(function(e) {
@@ -3338,6 +3374,7 @@ function afsApply() {
           ' written to <strong>' + escHtml(name) + '</strong>.';
         el.style.display = 'block';
         showToast('✓ Written to "' + name + '"', false);
+        track('afs_complete', addedRows + ' rows · mode: ' + mode + ' · ' + afsState.sources.length + ' source' + (afsState.sources.length !== 1 ? 's' : ''));
       });
     });
   }).catch(function(e){ showToast(e.message || 'Failed to write.', true); })
