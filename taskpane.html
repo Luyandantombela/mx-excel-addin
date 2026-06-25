@@ -595,7 +595,7 @@ function analyseData() {
     });
   });
 
-  issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, badEmails: badEmails };
+  issues = { blankCols: blankCols, dupes: dupes, fmtCols: fmtCols, badEmails: badEmails, wsColumns: headers.map(function() { return true; }) };
   fmtColKeys = Object.keys(fmtCols);
   var total = Object.keys(blankCols).length + dupes.length + fmtColKeys.length + badEmails.length;
   document.getElementById('issues-sub').textContent = 'Step 2 of 2 — ' + total + ' issue' + (total!==1?'s':'') + ' found';
@@ -706,13 +706,18 @@ function buildFmtRow(j, col) {
       '</div>';
   }
 
+  var ctrlId = 'fmt-ctrl-' + j;
   row.innerHTML =
     '<div class="tdot dot-' + col.type + '"></div>' +
     '<div style="flex:1;min-width:0">' +
       '<div class="fmt-col-name">' + col.header + '</div>' +
       '<div class="fmt-col-type">' + col.type + ' · ' + (col.manual ? 'manually added' : (col.issueCount + ' value' + (col.issueCount!==1?'s':'') + ' affected')) + '</div>' +
     '</div>' +
-    controlsHtml;
+    '<div id="' + ctrlId + '" style="flex-shrink:0">' + controlsHtml + '</div>' +
+    '<label style="display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;color:var(--t4);cursor:pointer;flex-shrink:0;padding-top:2px;user-select:none" title="Tick to leave this column untouched">' +
+      '<input type="checkbox" style="accent-color:var(--acc)" onchange="issues.fmtCols[' + j + '].skip=this.checked;var d=document.getElementById(\'' + ctrlId + '\');d.style.opacity=this.checked?\'0.3\':\'1\';d.style.pointerEvents=this.checked?\'none\':\'auto\'">' +
+      'Skip' +
+    '</label>';
   return row;
 }
 
@@ -1017,6 +1022,62 @@ function renderIssues() {
   }
   emailBody.appendChild(emailInner);
   body.appendChild(emailAcc);
+
+  /* ── Remove White Spaces ── */
+  var allHeaders = sel.values[0];
+  issues.wsColumns = allHeaders.map(function() { return true; });
+
+  var wsAcc = makeAcc('ws', 'ti-space', 'var(--t3)', 'Remove White Spaces', allHeaders.length, 'b-blue');
+  var wsBody = wsAcc.querySelector('.acc-body');
+  var wsInner = document.createElement('div');
+  wsInner.style.padding = '10px 14px';
+
+  var wsDesc = document.createElement('div');
+  wsDesc.style.cssText = 'font-size:11px;color:var(--t4);margin-bottom:10px';
+  wsDesc.textContent = 'Leading and trailing spaces will be trimmed in the checked columns.';
+  wsInner.appendChild(wsDesc);
+
+  var wsSelAllRow = document.createElement('label');
+  wsSelAllRow.className = 'sel-all-row';
+  wsSelAllRow.innerHTML = '<input type="checkbox" id="ws-all" checked> Select all (' + allHeaders.length + ' columns)';
+  wsInner.appendChild(wsSelAllRow);
+
+  var wsGrid = document.createElement('div');
+  wsGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:8px';
+  allHeaders.forEach(function(h, idx) {
+    var colName = h || ('Col ' + (idx + 1));
+    var lbl = document.createElement('label');
+    lbl.style.cssText = 'display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--t2);cursor:pointer;padding:2px 0;overflow:hidden';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'ws-cb';
+    cb.style.cssText = 'accent-color:var(--acc);flex-shrink:0';
+    cb.checked = true;
+    cb.dataset.idx = idx;
+    cb.addEventListener('change', function() {
+      issues.wsColumns[idx] = cb.checked;
+      var all = issues.wsColumns.every(function(v) { return v; });
+      var none = issues.wsColumns.every(function(v) { return !v; });
+      var allCb = document.getElementById('ws-all');
+      if (allCb) { allCb.checked = all; allCb.indeterminate = !all && !none; }
+    });
+    var span = document.createElement('span');
+    span.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    span.textContent = colName;
+    lbl.appendChild(cb);
+    lbl.appendChild(span);
+    wsGrid.appendChild(lbl);
+  });
+  wsInner.appendChild(wsGrid);
+
+  wsSelAllRow.querySelector('input').addEventListener('change', function(e) {
+    allHeaders.forEach(function(_, idx) { issues.wsColumns[idx] = e.target.checked; });
+    wsGrid.querySelectorAll('.ws-cb').forEach(function(cb) { cb.checked = e.target.checked; });
+    document.getElementById('ws-all').indeterminate = false;
+  });
+
+  wsBody.appendChild(wsInner);
+  body.appendChild(wsAcc);
 }
 
 /* ════ ACCORDION ════ */
@@ -1085,9 +1146,11 @@ function applyClean() {
     cellChanges.push({ origRowIdx: origIdx, colIdx: colIdx, before: before, after: after });
   }
 
-  /* 0. trim leading/trailing whitespace on every string cell, automatically */
+  /* 0. trim leading/trailing whitespace — per-column based on whitespace section */
+  var wsEnabled = issues.wsColumns || [];
   dataRows.forEach(function(row) {
     for (var c = 0; c < nCols; c++) {
+      if (!wsEnabled[c]) continue; /* user unchecked this column */
       var v = row[c];
       if (typeof v === 'string') {
         var trimmed = v.trim();
@@ -1146,6 +1209,7 @@ function applyClean() {
 
   Object.keys(issues.fmtCols).forEach(function(j) {
     var col = issues.fmtCols[j];
+    if (col.skip) return; /* user ticked "Skip" — leave column untouched */
     var jNum = +j;
 
     if (col.issueType === 'casing') {
@@ -1180,6 +1244,18 @@ function applyClean() {
       var thouMode      = col.chosenThousands  || 'none';
       var textCellsMode = col.chosenTextCells  || 'keep';
       var textReplace   = col.chosenTextReplace !== undefined ? String(col.chosenTextReplace) : '';
+      var resolvedDp    = decMode === 'keep' ? -1 : parseInt(decMode, 10);
+
+      /* Build Excel numberFormat for non-period modes.
+         Period mode (1.000,00) is locale-dependent in Excel so we format as string instead. */
+      if (thouMode !== 'period') {
+        var nfDecPart = resolvedDp > 0 ? '.' + '0'.repeat(resolvedDp) : (resolvedDp === 0 ? '' : '');
+        var numFmtStr = resolvedDp < 0 ? 'General' :
+                        thouMode === 'comma' ? '#,##0' + nfDecPart :
+                        thouMode === 'space' ? '# ##0' + nfDecPart :
+                        '0' + nfDecPart;
+        colNumFormats[jNum] = { fmt: numFmtStr, col: jNum };
+      }
 
       var numCount = 0, strippedCount = 0, blankedCount = 0;
       dataRows.forEach(function(row) {
@@ -1194,17 +1270,19 @@ function applyClean() {
             blankedCount++;
             row[jNum] = textReplace;
           }
-          /* 'keep' → leave untouched */
           return;
         }
         var hadNonNumericChars = /[^\d.,\-\s]/.test(s);
-        /* use original dp when "keep", otherwise user-chosen dp */
-        var dp = decMode === 'keep' ? parsed.dp : parseInt(decMode, 10);
-        var newV = formatNumOutput(parsed.num, dp, thouMode);
-        if (newV !== String(v)) {
-          logChange(row.__origIdx, jNum, v, newV);
-          numCount++;
-          if (hadNonNumericChars) strippedCount++;
+        var dp = resolvedDp < 0 ? parsed.dp : resolvedDp;
+        var newV;
+        if (thouMode === 'period') {
+          /* European style — store as formatted string (locale-safe) */
+          newV = formatNumOutput(parsed.num, dp, thouMode);
+          if (newV !== String(v)) { logChange(row.__origIdx, jNum, v, newV); numCount++; if (hadNonNumericChars) strippedCount++; }
+        } else {
+          /* Store as JS number — Excel numberFormat controls display */
+          newV = resolvedDp < 0 ? parsed.num : parseFloat(parsed.num.toFixed(resolvedDp));
+          if (String(newV) !== String(v)) { logChange(row.__origIdx, jNum, v, newV); numCount++; if (hadNonNumericChars) strippedCount++; }
         }
         row[jNum] = newV;
       });
@@ -1269,8 +1347,11 @@ function applyClean() {
       ns.getRangeByIndexes(0, 0, 1, cleanedData[0].length).format.font.bold = true;
       Object.keys(colNumFormats).forEach(function(ci) {
         var nf = colNumFormats[ci];
-        var colRange = ns.getRangeByIndexes(1, nf.col, cleanedData.length - 1, 1);
-        colRange.numberFormat = [[nf.fmt]];
+        var numDataRows = cleanedData.length - 1;
+        var colRange = ns.getRangeByIndexes(1, nf.col, numDataRows, 1);
+        var fmtArr = [];
+        for (var ri = 0; ri < numDataRows; ri++) fmtArr.push([nf.fmt]);
+        colRange.numberFormat = fmtArr;
       });
 
       /* ── Sheet 2: original data, annotated with highlights ── */
