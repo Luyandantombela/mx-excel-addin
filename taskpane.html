@@ -1823,9 +1823,13 @@ function smartParseNumber(raw) {
   } else if (dots > 0 && commas === 0) {
     if (dots === 1) {
       /* single dot — could be decimal (1234.56) or thousands (1.000) */
-      var afterDot = stripped.split('.')[1];
-      /* if exactly 3 digits after dot AND value before is plausible thousands → thousands sep */
-      if (afterDot.length === 3 && stripped.indexOf('.') > 0) {
+      var afterDot  = stripped.split('.')[1];
+      var beforeDot = stripped.split('.')[0].replace(/^-/, '');
+      /* treat as thousands separator ONLY if:
+         - exactly 3 digits after the dot, AND
+         - 1–3 digits before the dot (e.g. 1.000, 12.000, 999.000)
+         4+ digits before the dot (e.g. 9994.999, 1234.567) → always decimal */
+      if (afterDot.length === 3 && beforeDot.length >= 1 && beforeDot.length <= 3) {
         normalized = stripped.replace(/\./g, ''); /* remove thousands dot */
       } else {
         normalized = stripped; /* treat as decimal */
