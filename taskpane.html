@@ -687,17 +687,22 @@ function buildFmtRow(j, col) {
         (col.hasNonNumeric
           ? '<div style="font-size:10px;color:var(--warning,#f59e0b);padding:4px 2px;line-height:1.5">' +
               '<i class="ti ti-info-circle" style="margin-right:3px"></i>' +
-              'Some cells mix numbers with non-numeric characters (e.g. <b>R77883</b>). These characters will be stripped automatically.' +
-            '</div>' +
-            '<div style="display:flex;gap:6px;align-items:center">' +
-              '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Text cells:</span>' +
-              '<select class="p-sel fmt-control" style="font-size:11px;flex:1;padding:4px 6px"' +
-                ' onchange="issues.fmtCols[' + j + '].chosenTextCells=this.value">' +
-                '<option value="keep" selected>Keep</option>' +
-                '<option value="blank">Blank out</option>' +
-              '</select>' +
+              'Non-numeric characters will be stripped automatically.' +
             '</div>'
           : '') +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px">Text cells:</span>' +
+          '<select class="p-sel fmt-control" style="font-size:11px;flex:1;padding:4px 6px"' +
+            ' onchange="issues.fmtCols[' + j + '].chosenTextCells=this.value;document.getElementById(\'tc-inp-' + j + '\').style.display=this.value===\'replace\'?\'flex\':\'none\'">' +
+            '<option value="keep" selected>Keep</option>' +
+            '<option value="replace">Replace with…</option>' +
+          '</select>' +
+        '</div>' +
+        '<div id="tc-inp-' + j + '" style="display:none;gap:6px;align-items:center;margin-top:2px">' +
+          '<span style="font-size:10px;color:var(--t3);flex-shrink:0;width:62px"></span>' +
+          '<input class="p-sel" placeholder="e.g. 0 or N/A" style="font-size:11px;flex:1;padding:4px 6px;background:var(--s2);border:1px solid var(--b1);border-radius:5px;color:var(--t1)"' +
+            ' oninput="issues.fmtCols[' + j + '].chosenTextReplace=this.value">' +
+        '</div>' +
       '</div>';
   }
 
@@ -1171,22 +1176,10 @@ function applyClean() {
       if (dateCount) summary.dates[jNum] = { fmt: targetFmt, count: dateCount };
 
     } else if (col.issueType === 'number') {
-      var decMode       = col.chosenDecimals  || '2';
-      var thouMode      = col.chosenThousands || 'none';
-      var textCellsMode = col.chosenTextCells || 'keep';
-      var resolvedDp = decMode === 'keep' ? 0 : +decMode;
-
-      var numFmtStr;
-      if (decMode === 'keep') {
-        numFmtStr = 'General';
-      } else {
-        var decPart = resolvedDp > 0 ? '.' + '0'.repeat(resolvedDp) : '';
-        if (thouMode === 'comma')        numFmtStr = '#,##0' + decPart;
-        else if (thouMode === 'space')   numFmtStr = '# ##0' + decPart;
-        else if (thouMode === 'period')  numFmtStr = '#.##0' + (resolvedDp > 0 ? ',' + '0'.repeat(resolvedDp) : '');
-        else                             numFmtStr = '0' + decPart;
-      }
-      colNumFormats[jNum] = { fmt: numFmtStr, col: jNum };
+      var decMode       = col.chosenDecimals   || '2';
+      var thouMode      = col.chosenThousands  || 'none';
+      var textCellsMode = col.chosenTextCells  || 'keep';
+      var textReplace   = col.chosenTextReplace !== undefined ? String(col.chosenTextReplace) : '';
 
       var numCount = 0, strippedCount = 0, blankedCount = 0;
       dataRows.forEach(function(row) {
@@ -1195,16 +1188,20 @@ function applyClean() {
         var s = String(v).trim();
         var parsed = smartParseNumber(s);
         if (isNaN(parsed.num)) {
-          if (textCellsMode === 'blank') {
-            logChange(row.__origIdx, jNum, v, '');
+          /* pure text cell — can't parse as number */
+          if (textCellsMode === 'replace') {
+            logChange(row.__origIdx, jNum, v, textReplace);
             blankedCount++;
-            row[jNum] = '';
+            row[jNum] = textReplace;
           }
+          /* 'keep' → leave untouched */
           return;
         }
         var hadNonNumericChars = /[^\d.,\-\s]/.test(s);
-        var newV = decMode === 'keep' ? parsed.num : parseFloat(parsed.num.toFixed(resolvedDp));
-        if (String(newV) !== String(v)) {
+        /* use original dp when "keep", otherwise user-chosen dp */
+        var dp = decMode === 'keep' ? parsed.dp : parseInt(decMode, 10);
+        var newV = formatNumOutput(parsed.num, dp, thouMode);
+        if (newV !== String(v)) {
           logChange(row.__origIdx, jNum, v, newV);
           numCount++;
           if (hadNonNumericChars) strippedCount++;
@@ -1214,7 +1211,8 @@ function applyClean() {
       if (numCount || blankedCount) {
         summary.numbers[jNum] = {
           decimals: decMode, thousands: thouMode,
-          count: numCount, stripped: strippedCount, blanked: blankedCount
+          count: numCount, stripped: strippedCount, blanked: blankedCount,
+          replacedWith: textCellsMode === 'replace' ? textReplace : null
         };
       }
     }
@@ -1414,7 +1412,7 @@ function renderSummary(summary, cellChanges, deletedRows, headers, finalRowCount
     if (d.thousands !== 'none') bits.push('thousands separator');
     var line = '<i class="ti ti-decimal" style="color:var(--green)"></i><span><b>' + colName(+c) + '</b> — reformatted (' + bits.join(', ') + '), ' + d.count + ' cell' + (d.count!==1?'s':'') + ' updated';
     if (d.stripped) line += '; non-numeric characters stripped from ' + d.stripped + ' cell' + (d.stripped!==1?'s':'');
-    if (d.blanked)  line += '; ' + d.blanked + ' text-only cell' + (d.blanked!==1?'s':'') + ' blanked out';
+    if (d.blanked)  line += '; ' + d.blanked + ' text-only cell' + (d.blanked!==1?'s':'') + (d.replacedWith !== null ? ' replaced with "' + d.replacedWith + '"' : ' removed');
     line += '</span>';
     fmtItems.push(line);
   });
@@ -1779,6 +1777,29 @@ function writeNewSheet(baseName, data, onSuccess, onFail) {
   }).catch(function(e){ showToast(e.message,true); onFail(); });
 }
 
+
+/* ── Number output formatter ─────────────────────────────────────────────
+   Formats a JS float into a string that exactly matches the user's choices.
+   dp      = integer decimal places (-1 means "keep original")
+   thouMode = 'none' | 'comma' | 'space' | 'period'
+   Period-thousands uses comma as the decimal separator (European style).   */
+function formatNumOutput(num, dp, thouMode) {
+  var str = num.toFixed(dp < 0 ? 0 : dp);
+  var parts   = str.split('.');
+  var intPart = parts[0];
+  var decPart = parts.length > 1 ? parts[1] : '';
+
+  var neg = intPart[0] === '-';
+  if (neg) intPart = intPart.slice(1);
+
+  var tSep = thouMode === 'comma' ? ',' :
+             thouMode === 'space'  ? '\u00a0' :
+             thouMode === 'period' ? '.' : '';
+  if (tSep) intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, tSep);
+
+  var dSep = thouMode === 'period' ? ',' : '.';
+  return (neg ? '-' : '') + intPart + (decPart ? dSep + decPart : '');
+}
 
 /* ── Smart number parser ─────────────────────────────────────────────────
    Handles: 3782,23  /  1.234,56  /  1,234.56  /  R77883  /  me 3782,23
