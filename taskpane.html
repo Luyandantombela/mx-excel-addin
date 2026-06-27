@@ -368,7 +368,7 @@ html,body{
 <!-- ══════════ AI CHAT ══════════ -->
 <div class="screen" id="ai-chat">
   <div class="panel-header">
-    <button class="back-btn" onclick="show('ai-workflows')"><i class="ti ti-arrow-left"></i></button>
+    <button class="back-btn" onclick="show('clean-mode')"><i class="ti ti-arrow-left"></i></button>
     <div>
       <div class="panel-title">New AI Workflow</div>
       <div class="panel-sub">Describe how to clean your data</div>
@@ -377,12 +377,20 @@ html,body{
   <div class="panel-body" style="padding:14px;gap:10px" id="ai-chat-body">
     <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:12px;font-size:11.5px;color:var(--t2);line-height:1.7">
       Tell me what you want done to your data. For example:<br>
-      <span style="color:var(--t3);font-style:italic">"Capitalise all names, remove rows where email is empty, trim spaces from all text columns, and remove duplicates based on the ID column."</span>
+      <span style="color:var(--t3);font-style:italic">"Capitalise all names, remove rows where email is empty, trim spaces from all text columns."</span>
     </div>
     <div id="ai-messages" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
   <div class="panel-footer" style="flex-direction:column;gap:8px;padding:10px 14px">
-    <div style="display:flex;gap:8px;width:100%">
+    <div id="ai-chat-footer" style="display:none;width:100%">
+      <button class="primary-btn" onclick="saveCurrentWorkflow()" style="margin-bottom:8px;background:#4caf81;border-color:#4caf81">
+        <i class="ti ti-device-floppy" style="margin-right:6px"></i>Save workflow &amp; apply
+      </button>
+      <button onclick="openAIChat()" style="width:100%;padding:9px;background:transparent;border:1px solid var(--b1);border-radius:8px;color:var(--t2);font-size:12px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">
+        Make changes
+      </button>
+    </div>
+    <div id="ai-input-area" style="display:flex;gap:8px;width:100%">
       <textarea id="ai-input" placeholder="Describe what you want done to your data…" style="flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:8px;color:var(--t1);font-family:'IBM Plex Sans',sans-serif;font-size:12px;padding:10px;resize:none;height:64px;line-height:1.5"></textarea>
       <button id="ai-send-btn" onclick="sendAIMessage()" style="background:var(--acc);border:none;border-radius:8px;color:#fff;width:40px;flex-shrink:0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center">
         <i class="ti ti-send"></i>
@@ -573,36 +581,43 @@ function confirmAINotice() {
 
 function openAIWorkflows() {
   var workflows = getWorkflows();
+  var headers = sel && sel.values && sel.values[0] ? sel.values[0].join('|') : '';
+  var matched = workflows.filter(function(w) { return w.headers === headers; });
+
+  /* No saved workflows for this data structure — go straight to chat */
+  if (matched.length === 0) {
+    openAIChat();
+    return;
+  }
+
   var body = document.getElementById('workflows-body');
   var sub = document.getElementById('workflows-sub');
   body.innerHTML = '';
+  sub.textContent = 'Your saved workflows for this data';
 
-  /* filter workflows matching current column headers */
-  var headers = sel && sel.values && sel.values[0] ? sel.values[0].join('|') : '';
-  var matched = workflows.filter(function(w) { return w.headers === headers; });
-  var others  = workflows.filter(function(w) { return w.headers !== headers; });
+  matched.forEach(function(w) { body.appendChild(buildWorkflowCard(w, true)); });
 
-  if (matched.length === 0 && others.length === 0) {
-    sub.textContent = 'No workflows yet';
-    body.innerHTML = '<div style="font-size:12px;color:var(--t3);text-align:center;padding:24px 0;line-height:1.7">No saved workflows yet.<br>Create your first one below.</div>';
-  } else {
-    sub.textContent = matched.length ? 'Matching your current data' : 'No match for current columns';
-    if (matched.length) {
-      var matchLabel = document.createElement('div');
-      matchLabel.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:2px';
-      matchLabel.textContent = 'Ready to run';
-      body.appendChild(matchLabel);
-      matched.forEach(function(w) { body.appendChild(buildWorkflowCard(w, true)); });
-    }
-    if (others.length) {
-      var otherLabel = document.createElement('div');
-      otherLabel.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-top:8px;margin-bottom:2px';
-      otherLabel.textContent = 'Other saved workflows';
-      body.appendChild(otherLabel);
-      others.forEach(function(w) { body.appendChild(buildWorkflowCard(w, false)); });
-    }
+  var others = workflows.filter(function(w) { return w.headers !== headers; });
+  if (others.length) {
+    var otherLabel = document.createElement('div');
+    otherLabel.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-top:12px;margin-bottom:4px';
+    otherLabel.textContent = 'Other workflows (different columns)';
+    body.appendChild(otherLabel);
+    others.forEach(function(w) { body.appendChild(buildWorkflowCard(w, false)); });
   }
+
   show('ai-workflows');
+}
+
+function openAIChat() {
+  /* reset chat state */
+  document.getElementById('ai-messages').innerHTML = '';
+  document.getElementById('ai-input').value = '';
+  aiConversation = [];
+  currentDraftWorkflow = null;
+  var footer = document.getElementById('ai-chat-footer');
+  if (footer) footer.style.display = 'none';
+  show('ai-chat');
 }
 
 function buildWorkflowCard(w, canRun) {
@@ -635,7 +650,7 @@ function saveWorkflow(w) {
 }
 
 /* ── AI Chat ── */
-var aiConversation = [];
+var currentDraftWorkflow = null;
 
 function sendAIMessage() {
   var input = document.getElementById('ai-input');
@@ -644,60 +659,44 @@ function sendAIMessage() {
   input.value = '';
 
   addAIMessage('user', text);
-  aiConversation.push({ role: 'user', content: text });
 
   var thinkEl = addAIMessage('thinking', 'Building your workflow…');
   document.getElementById('ai-send-btn').disabled = true;
+  document.getElementById('ai-input-area').style.display = 'none';
+  document.getElementById('ai-chat-footer').style.display = 'none';
 
-  /* Build data sample to send to AI (first 6 rows max) */
-  var dataSample = sel.values.slice(0, 7);
   var headers = sel.values[0];
+  var dataSample = sel.values.slice(0, 7);
 
-  var systemPrompt = 'You are a data cleaning code generator for Microsoft Excel. The user has selected data in Excel and will describe how they want it cleaned.\n\n' +
-    'Your job is to:\n' +
-    '1. Write a JavaScript function called `runCleaningCode(data)` that accepts a 2D array (rows x cols, first row is headers) and returns the cleaned 2D array.\n' +
-    '2. Write a short workflow name (max 5 words).\n' +
-    '3. Write a one-line summary of what the code does (max 15 words).\n\n' +
-    'The data has these headers: ' + JSON.stringify(headers) + '\n' +
+  var prompt = 'You are a data cleaning code generator for Microsoft Excel.\n\n' +
+    'The user has data with these headers: ' + JSON.stringify(headers) + '\n' +
     'Sample rows: ' + JSON.stringify(dataSample.slice(1)) + '\n\n' +
-    'Respond ONLY with a JSON object in this exact format, no markdown, no explanation:\n' +
-    '{"name":"workflow name","summary":"one line summary","code":"function runCleaningCode(data){...}"}\n\n' +
-    'Rules for the code:\n' +
-    '- First row of data is always headers, preserve it\n' +
-    '- Return the full 2D array including headers\n' +
-    '- Use only vanilla JavaScript, no external libraries\n' +
-    '- Handle empty/null cells gracefully';
+    'User request: ' + text + '\n\n' +
+    'Write a JavaScript function called runCleaningCode(data) that accepts a 2D array (first row is headers) and returns the cleaned 2D array.\n' +
+    'Also provide a short workflow name (max 5 words) and a one-line summary (max 15 words).\n\n' +
+    'Rules:\n- First row is always headers, preserve it\n- Return full 2D array including headers\n- Use only vanilla JavaScript\n- Handle empty/null cells gracefully\n\n' +
+    'Respond ONLY with a JSON object, no markdown:\n{"name":"...","summary":"...","code":"function runCleaningCode(data){...}"}';
 
-  var messages = [{ role: 'user', content: 'Data headers: ' + JSON.stringify(headers) + '\n\nUser request: ' + text }];
-
-  fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: messages
-    })
+  /* Use GAS proxy to avoid CORS — reuse existing analytics endpoint with action=ai */
+  fetch(_TU + '?action=ai&prompt=' + encodeURIComponent(prompt), {
+    method: 'GET'
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     thinkEl.remove();
     document.getElementById('ai-send-btn').disabled = false;
+    document.getElementById('ai-input-area').style.display = 'flex';
 
-    var raw = data.content && data.content[0] && data.content[0].text ? data.content[0].text : '';
+    var raw = data.result || '';
     var parsed;
     try {
-      var clean = raw.replace(/```json|```/g, '').trim();
-      parsed = JSON.parse(clean);
+      parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     } catch(e) {
-      addAIMessage('ai', 'Sorry, something went wrong generating your workflow. Please try again.');
+      addAIMessage('ai', 'Something went wrong. Please try describing your request differently.');
       return;
     }
 
-    addAIMessage('ai', 'Done! I\'ve built a workflow called "' + parsed.name + '". ' + parsed.summary + ' Applying it to your data now…');
-
-    var workflow = {
+    currentDraftWorkflow = {
       id: Date.now().toString(36),
       name: parsed.name,
       summary: parsed.summary,
@@ -705,14 +704,22 @@ function sendAIMessage() {
       headers: headers.join('|'),
       created: new Date().toLocaleDateString()
     };
-    saveWorkflow(workflow);
-    setTimeout(function() { runWorkflow(workflow); }, 800);
+
+    addAIMessage('ai', 'Here\'s what I\'ll do: ' + parsed.summary + '\n\nWorkflow name: "' + parsed.name + '"\n\nHappy with this? Save it below, or describe any changes you want.');
+    document.getElementById('ai-chat-footer').style.display = 'block';
   })
   .catch(function() {
     thinkEl.remove();
     document.getElementById('ai-send-btn').disabled = false;
+    document.getElementById('ai-input-area').style.display = 'flex';
     addAIMessage('ai', 'Connection error. Please check your internet and try again.');
   });
+}
+
+function saveCurrentWorkflow() {
+  if (!currentDraftWorkflow) return;
+  saveWorkflow(currentDraftWorkflow);
+  runWorkflow(currentDraftWorkflow);
 }
 
 function addAIMessage(type, text) {
