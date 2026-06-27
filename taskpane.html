@@ -30,7 +30,28 @@ html,body{
   overflow:hidden;
 }
 
-/* each screen fills the viewport and manages its own scroll */
+/* ── AI mode cards ── */
+.ai-mode-card{display:flex;align-items:center;gap:12px;padding:14px;background:var(--s1);border:1px solid var(--b1);border-radius:10px;cursor:pointer;text-align:left;color:var(--t1);font-family:'IBM Plex Sans',sans-serif;width:100%;transition:all .12s}
+.ai-mode-card:hover{background:var(--s2);border-color:var(--acc)}
+.ai-mode-icon{width:40px;height:40px;border-radius:8px;background:rgba(124,95,240,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ai-mode-icon i{font-size:20px;color:var(--acc)}
+.ai-mode-text{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.ai-mode-title{font-size:13px;font-weight:600;color:var(--t1)}
+.ai-mode-desc{font-size:11px;color:var(--t3);line-height:1.5}
+/* ── workflow cards ── */
+.wf-card{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--s1);border:1px solid var(--b1);border-radius:10px;cursor:pointer;text-align:left;font-family:'IBM Plex Sans',sans-serif;width:100%;transition:all .12s;color:var(--t1)}
+.wf-card:hover{background:var(--s2);border-color:var(--acc)}
+.wf-card-icon{width:36px;height:36px;border-radius:8px;background:rgba(124,95,240,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.wf-card-icon i{font-size:16px;color:var(--acc)}
+.wf-card-text{flex:1;min-width:0}
+.wf-card-name{font-size:12px;font-weight:600;color:var(--t1);margin-bottom:2px}
+.wf-card-summary{font-size:10.5px;color:var(--t3);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ── ai message bubbles ── */
+.ai-msg{padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.6;max-width:100%}
+.ai-msg.user{background:var(--acc);color:#fff;align-self:flex-end;border-bottom-right-radius:2px}
+.ai-msg.ai{background:var(--s1);border:1px solid var(--b1);color:var(--t1);align-self:flex-start;border-bottom-left-radius:2px}
+.ai-msg.thinking{background:var(--s1);border:1px solid var(--b1);color:var(--t3);font-style:italic;align-self:flex-start}
+
 .screen{
   display:none;
   flex-direction:column;
@@ -269,6 +290,122 @@ html,body{
   </div>
 </div>
 
+<!-- ══════════ CLEAN MODE PICKER ══════════ -->
+<div class="screen" id="clean-mode">
+  <div class="panel-header">
+    <button class="back-btn" onclick="show('home')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">Clean a file</div>
+      <div class="panel-sub">Choose how you want to clean</div>
+    </div>
+  </div>
+  <div class="panel-body" style="gap:12px;padding:16px">
+    <button class="ai-mode-card" id="ai-mode-btn" onclick="openAIClean()">
+      <div class="ai-mode-icon"><i class="ti ti-robot"></i></div>
+      <div class="ai-mode-text">
+        <span class="ai-mode-title">Clean with AI</span>
+        <span class="ai-mode-desc">Tell the AI how to clean your data. It builds a reusable workflow — one click every time after.</span>
+      </div>
+      <i class="ti ti-chevron-right" style="color:var(--t3);flex-shrink:0"></i>
+    </button>
+    <button class="ai-mode-card" onclick="openManualClean()">
+      <div class="ai-mode-icon" style="background:var(--s2)"><i class="ti ti-settings" style="color:var(--t2)"></i></div>
+      <div class="ai-mode-text">
+        <span class="ai-mode-title">Manual cleaning</span>
+        <span class="ai-mode-desc">Confirm column types and review issues yourself. Full control over every decision.</span>
+      </div>
+      <i class="ti ti-chevron-right" style="color:var(--t3);flex-shrink:0"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ══════════ AI NOTICE (shown once) ══════════ -->
+<div class="screen" id="ai-notice">
+  <div class="panel-header">
+    <button class="back-btn" onclick="show('clean-mode')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">Before we begin</div>
+      <div class="panel-sub">Just so you know</div>
+    </div>
+  </div>
+  <div class="panel-body" style="padding:16px;gap:14px">
+    <div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <i class="ti ti-shield-check" style="font-size:20px;color:var(--acc)"></i>
+        <span style="font-size:13px;font-weight:600;color:var(--t1)">Your data will be shared with AI</span>
+      </div>
+      <p style="font-size:12px;color:var(--t2);line-height:1.7;margin:0">To build your cleaning workflow, your selected data is sent to Claude AI. This is necessary so the AI understands your data structure and writes code that works specifically for it.</p>
+      <div style="border-top:1px solid var(--b1);padding-top:10px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--t2)"><i class="ti ti-check" style="color:var(--acc);margin-top:1px;flex-shrink:0"></i>The AI uses your data only to generate cleaning code</div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--t2)"><i class="ti ti-check" style="color:var(--acc);margin-top:1px;flex-shrink:0"></i>Your data is not stored by Anthropic beyond the request</div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--t2)"><i class="ti ti-check" style="color:var(--acc);margin-top:1px;flex-shrink:0"></i>The workflow code is saved locally on your device only</div>
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--t2)"><i class="ti ti-check" style="color:var(--acc);margin-top:1px;flex-shrink:0"></i>You will not see this message again</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel-footer">
+    <button class="primary-btn" onclick="confirmAINotice()">I understand — continue</button>
+  </div>
+</div>
+
+<!-- ══════════ AI WORKFLOWS ══════════ -->
+<div class="screen" id="ai-workflows">
+  <div class="panel-header">
+    <button class="back-btn" onclick="show('clean-mode')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">AI Workflows</div>
+      <div class="panel-sub" id="workflows-sub">Your saved cleaning workflows</div>
+    </div>
+  </div>
+  <div class="panel-body" style="padding:16px;gap:10px" id="workflows-body"></div>
+  <div class="panel-footer">
+    <button class="primary-btn" onclick="show('ai-chat')">
+      <i class="ti ti-plus" style="margin-right:6px"></i>New workflow
+    </button>
+  </div>
+</div>
+
+<!-- ══════════ AI CHAT ══════════ -->
+<div class="screen" id="ai-chat">
+  <div class="panel-header">
+    <button class="back-btn" onclick="show('ai-workflows')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">New AI Workflow</div>
+      <div class="panel-sub">Describe how to clean your data</div>
+    </div>
+  </div>
+  <div class="panel-body" style="padding:14px;gap:10px" id="ai-chat-body">
+    <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:12px;font-size:11.5px;color:var(--t2);line-height:1.7">
+      Tell me what you want done to your data. For example:<br>
+      <span style="color:var(--t3);font-style:italic">"Capitalise all names, remove rows where email is empty, trim spaces from all text columns, and remove duplicates based on the ID column."</span>
+    </div>
+    <div id="ai-messages" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+  <div class="panel-footer" style="flex-direction:column;gap:8px;padding:10px 14px">
+    <div style="display:flex;gap:8px;width:100%">
+      <textarea id="ai-input" placeholder="Describe what you want done to your data…" style="flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:8px;color:var(--t1);font-family:'IBM Plex Sans',sans-serif;font-size:12px;padding:10px;resize:none;height:64px;line-height:1.5"></textarea>
+      <button id="ai-send-btn" onclick="sendAIMessage()" style="background:var(--acc);border:none;border-radius:8px;color:#fff;width:40px;flex-shrink:0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center">
+        <i class="ti ti-send"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ AI RESULT ══════════ -->
+<div class="screen" id="ai-result">
+  <div class="panel-header">
+    <button class="back-btn" onclick="show('home')"><i class="ti ti-arrow-left"></i></button>
+    <div>
+      <div class="panel-title">Cleaning complete</div>
+      <div class="panel-sub">Workflow applied successfully</div>
+    </div>
+  </div>
+  <div class="panel-body" style="padding:16px;gap:10px" id="ai-result-body"></div>
+  <div class="panel-footer">
+    <button class="primary-btn" onclick="show('home')">Back to home</button>
+  </div>
+</div>
+
 <!-- ══════════ STEP 1 — COLUMN TYPES ══════════ -->
 <div class="screen" id="step1">
   <div class="panel-header">
@@ -405,7 +542,10 @@ function show(id) {
 function goHome()  { show('home'); readSel(); }
 function goStep1() { show('step1'); }
 function handleFeature(f) {
-  if (f === 'clean') openClean();
+  if (f === 'clean') {
+    if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
+    show('clean-mode');
+  }
   else if (f === 'compare') openCompare();
   else if (f === 'bulk') openBulk();
   else if (f === 'merge-files') openMergeFiles();
@@ -414,7 +554,244 @@ function handleFeature(f) {
 }
 
 /* ════ STEP 1 ════ */
-function openClean() {
+/* ════ AI CLEAN ════ */
+var AI_NOTICE_KEY = 'mxt_ai_notice_seen';
+var AI_WORKFLOWS_KEY = 'mxt_ai_workflows';
+
+function openManualClean() { openClean(); }
+
+function openAIClean() {
+  var seen = localStorage.getItem(AI_NOTICE_KEY);
+  if (!seen) { show('ai-notice'); return; }
+  openAIWorkflows();
+}
+
+function confirmAINotice() {
+  localStorage.setItem(AI_NOTICE_KEY, '1');
+  openAIWorkflows();
+}
+
+function openAIWorkflows() {
+  var workflows = getWorkflows();
+  var body = document.getElementById('workflows-body');
+  var sub = document.getElementById('workflows-sub');
+  body.innerHTML = '';
+
+  /* filter workflows matching current column headers */
+  var headers = sel && sel.values && sel.values[0] ? sel.values[0].join('|') : '';
+  var matched = workflows.filter(function(w) { return w.headers === headers; });
+  var others  = workflows.filter(function(w) { return w.headers !== headers; });
+
+  if (matched.length === 0 && others.length === 0) {
+    sub.textContent = 'No workflows yet';
+    body.innerHTML = '<div style="font-size:12px;color:var(--t3);text-align:center;padding:24px 0;line-height:1.7">No saved workflows yet.<br>Create your first one below.</div>';
+  } else {
+    sub.textContent = matched.length ? 'Matching your current data' : 'No match for current columns';
+    if (matched.length) {
+      var matchLabel = document.createElement('div');
+      matchLabel.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:2px';
+      matchLabel.textContent = 'Ready to run';
+      body.appendChild(matchLabel);
+      matched.forEach(function(w) { body.appendChild(buildWorkflowCard(w, true)); });
+    }
+    if (others.length) {
+      var otherLabel = document.createElement('div');
+      otherLabel.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-top:8px;margin-bottom:2px';
+      otherLabel.textContent = 'Other saved workflows';
+      body.appendChild(otherLabel);
+      others.forEach(function(w) { body.appendChild(buildWorkflowCard(w, false)); });
+    }
+  }
+  show('ai-workflows');
+}
+
+function buildWorkflowCard(w, canRun) {
+  var card = document.createElement('button');
+  card.className = 'wf-card';
+  if (!canRun) card.style.opacity = '0.55';
+  card.innerHTML =
+    '<div class="wf-card-icon"><i class="ti ti-' + (canRun ? 'bolt' : 'file-description') + '"></i></div>' +
+    '<div class="wf-card-text">' +
+      '<div class="wf-card-name">' + escHtml(w.name) + '</div>' +
+      '<div class="wf-card-summary">' + escHtml(w.summary) + '</div>' +
+    '</div>' +
+    '<i class="ti ti-' + (canRun ? 'player-play' : 'lock') + '" style="color:var(--t3);flex-shrink:0;font-size:14px"></i>';
+  if (canRun) {
+    card.addEventListener('click', function() { runWorkflow(w); });
+  } else {
+    card.title = 'This workflow was built for different columns';
+  }
+  return card;
+}
+
+function getWorkflows() {
+  try { return JSON.parse(localStorage.getItem(AI_WORKFLOWS_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function saveWorkflow(w) {
+  var list = getWorkflows();
+  list.unshift(w);
+  localStorage.setItem(AI_WORKFLOWS_KEY, JSON.stringify(list.slice(0, 20)));
+}
+
+/* ── AI Chat ── */
+var aiConversation = [];
+
+function sendAIMessage() {
+  var input = document.getElementById('ai-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  addAIMessage('user', text);
+  aiConversation.push({ role: 'user', content: text });
+
+  var thinkEl = addAIMessage('thinking', 'Building your workflow…');
+  document.getElementById('ai-send-btn').disabled = true;
+
+  /* Build data sample to send to AI (first 6 rows max) */
+  var dataSample = sel.values.slice(0, 7);
+  var headers = sel.values[0];
+
+  var systemPrompt = 'You are a data cleaning code generator for Microsoft Excel. The user has selected data in Excel and will describe how they want it cleaned.\n\n' +
+    'Your job is to:\n' +
+    '1. Write a JavaScript function called `runCleaningCode(data)` that accepts a 2D array (rows x cols, first row is headers) and returns the cleaned 2D array.\n' +
+    '2. Write a short workflow name (max 5 words).\n' +
+    '3. Write a one-line summary of what the code does (max 15 words).\n\n' +
+    'The data has these headers: ' + JSON.stringify(headers) + '\n' +
+    'Sample rows: ' + JSON.stringify(dataSample.slice(1)) + '\n\n' +
+    'Respond ONLY with a JSON object in this exact format, no markdown, no explanation:\n' +
+    '{"name":"workflow name","summary":"one line summary","code":"function runCleaningCode(data){...}"}\n\n' +
+    'Rules for the code:\n' +
+    '- First row of data is always headers, preserve it\n' +
+    '- Return the full 2D array including headers\n' +
+    '- Use only vanilla JavaScript, no external libraries\n' +
+    '- Handle empty/null cells gracefully';
+
+  var messages = [{ role: 'user', content: 'Data headers: ' + JSON.stringify(headers) + '\n\nUser request: ' + text }];
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: messages
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    thinkEl.remove();
+    document.getElementById('ai-send-btn').disabled = false;
+
+    var raw = data.content && data.content[0] && data.content[0].text ? data.content[0].text : '';
+    var parsed;
+    try {
+      var clean = raw.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      addAIMessage('ai', 'Sorry, something went wrong generating your workflow. Please try again.');
+      return;
+    }
+
+    addAIMessage('ai', 'Done! I\'ve built a workflow called "' + parsed.name + '". ' + parsed.summary + ' Applying it to your data now…');
+
+    var workflow = {
+      id: Date.now().toString(36),
+      name: parsed.name,
+      summary: parsed.summary,
+      code: parsed.code,
+      headers: headers.join('|'),
+      created: new Date().toLocaleDateString()
+    };
+    saveWorkflow(workflow);
+    setTimeout(function() { runWorkflow(workflow); }, 800);
+  })
+  .catch(function() {
+    thinkEl.remove();
+    document.getElementById('ai-send-btn').disabled = false;
+    addAIMessage('ai', 'Connection error. Please check your internet and try again.');
+  });
+}
+
+function addAIMessage(type, text) {
+  var body = document.getElementById('ai-messages');
+  var el = document.createElement('div');
+  el.className = 'ai-msg ' + type;
+  el.textContent = text;
+  body.appendChild(el);
+  body.scrollTop = body.scrollHeight;
+  return el;
+}
+
+function runWorkflow(w) {
+  showToast('Running workflow…', false);
+  Excel.run(function(ctx) {
+    var sheet = ctx.workbook.worksheets.getActiveWorksheet();
+    var data = sel.values;
+
+    /* run the stored cleaning code */
+    var cleanFn;
+    try {
+      cleanFn = new Function('return (' + w.code + ')')();
+    } catch(e) {
+      showToast('Workflow code error: ' + e.message, true);
+      return Promise.resolve();
+    }
+
+    var cleaned;
+    try {
+      cleaned = cleanFn(JSON.parse(JSON.stringify(data)));
+    } catch(e) {
+      showToast('Workflow run error: ' + e.message, true);
+      return Promise.resolve();
+    }
+
+    var sheets = ctx.workbook.worksheets;
+    sheets.load('items/name');
+    return ctx.sync().then(function() {
+      var existing = sheets.items.map(function(s) { return s.name; });
+      var cleanName = w.name, n = 1;
+      while (existing.includes(cleanName)) cleanName = w.name + ' ' + (n++);
+      var ns = sheets.add(cleanName);
+      var range = ns.getRangeByIndexes(0, 0, cleaned.length, cleaned[0].length);
+      range.values = cleaned;
+      ns.getRangeByIndexes(0, 0, 1, cleaned[0].length).format.font.bold = true;
+      ns.activate();
+      return ctx.sync();
+    });
+  }).then(function() {
+    showAIResult(w, sel.values.length - 1);
+  }).catch(function(e) {
+    showToast('Error: ' + e.message, true);
+  });
+}
+
+function showAIResult(w, originalRows) {
+  var body = document.getElementById('ai-result-body');
+  body.innerHTML =
+    '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        '<i class="ti ti-circle-check" style="font-size:22px;color:#4caf81"></i>' +
+        '<span style="font-size:13px;font-weight:600;color:var(--t1)">' + escHtml(w.name) + '</span>' +
+      '</div>' +
+      '<p style="font-size:12px;color:var(--t2);line-height:1.7;margin:0">' + escHtml(w.summary) + '</p>' +
+      '<div style="border-top:1px solid var(--b1);padding-top:10px;font-size:11px;color:var(--t3)">Cleaned sheet created · ' + originalRows + ' rows processed · Workflow saved for one-click reuse</div>' +
+    '</div>' +
+    '<div style="background:rgba(124,95,240,.07);border:1px solid rgba(124,95,240,.2);border-radius:10px;padding:14px;font-size:11.5px;color:var(--t2);line-height:1.7">' +
+      '<i class="ti ti-bolt" style="color:var(--acc);margin-right:6px"></i>' +
+      'Next time you have data with these same columns, just select it, click <strong>Clean with AI</strong>, and hit <strong>' + escHtml(w.name) + '</strong> — done in one click.' +
+    '</div>';
+  show('ai-result');
+  track('ai_clean_complete', w.name);
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ════ CLEAN (MANUAL) ════ */
   if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
   /* Merge .text over .values for any cell where the raw value is a number but
      the displayed text looks like a date — this replaces serial numbers with
