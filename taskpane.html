@@ -376,8 +376,8 @@ html,body{
   </div>
   <div class="panel-body" style="padding:14px;gap:10px" id="ai-chat-body">
     <div style="background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:12px;font-size:11.5px;color:var(--t2);line-height:1.7">
-      Tell me what you want done to your data. For example:<br>
-      <span style="color:var(--t3);font-style:italic">"Capitalise all names, remove rows where email is empty, trim spaces from all text columns."</span>
+      Just tell me what you want done — like you're explaining it to a person. For example:<br>
+      <span style="color:var(--t3);font-style:italic">"Capitalise all the names, remove any rows where email is blank, and trim extra spaces from every column."</span>
     </div>
     <div id="ai-messages" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
@@ -680,7 +680,7 @@ function sendAIMessage() {
   /* Use GAS proxy to avoid CORS — reuse existing analytics endpoint with action=ai */
   fetch(_TU, {
     method: 'POST',
-    contentType: 'application/json',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'ai', prompt: prompt })
   })
   .then(function(r) { return r.json(); })
@@ -694,7 +694,8 @@ function sendAIMessage() {
     try {
       parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     } catch(e) {
-      addAIMessage('ai', 'Something went wrong. Please try describing your request differently.');
+      addAIMessage('ai', 'Hmm, I had trouble understanding that. Could you rephrase what you want done to your data?');
+      document.getElementById('ai-input-area').style.display = 'flex';
       return;
     }
 
@@ -707,14 +708,14 @@ function sendAIMessage() {
       created: new Date().toLocaleDateString()
     };
 
-    addAIMessage('ai', 'Here\'s what I\'ll do: ' + parsed.summary + '\n\nWorkflow name: "' + parsed.name + '"\n\nHappy with this? Save it below, or describe any changes you want.');
+    addAIMessage('ai', 'Got it! Here\'s what I\'ll do:\n\n' + parsed.summary + '\n\nI\'ll call this workflow "' + parsed.name + '". Happy with that? Hit Save below to apply it, or tell me what you\'d like to change.');
     document.getElementById('ai-chat-footer').style.display = 'block';
   })
   .catch(function() {
     thinkEl.remove();
     document.getElementById('ai-send-btn').disabled = false;
     document.getElementById('ai-input-area').style.display = 'flex';
-    addAIMessage('ai', 'Connection error. Please check your internet and try again.');
+    addAIMessage('ai', 'I couldn\'t connect right now. Check your internet connection and try again.');
   });
 }
 
