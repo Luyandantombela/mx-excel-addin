@@ -680,7 +680,6 @@ function sendAIMessage() {
   /* Use GAS proxy to avoid CORS — reuse existing analytics endpoint with action=ai */
   fetch(_TU, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'ai', prompt: prompt })
   })
   .then(function(r) { return r.json(); })
