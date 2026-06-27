@@ -551,10 +551,7 @@ function show(id) {
 function goHome()  { show('home'); readSel(); }
 function goStep1() { show('step1'); }
 function handleFeature(f) {
-  if (f === 'clean') {
-    if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
-    show('clean-mode');
-  }
+  if (f === 'clean') openClean();
   else if (f === 'compare') openCompare();
   else if (f === 'bulk') openBulk();
   else if (f === 'merge-files') openMergeFiles();
