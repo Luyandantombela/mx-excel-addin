@@ -483,7 +483,8 @@ var _tid = (function() {
 })();
 var _sid    = 's_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
 var _sStart = Date.now();
-var _TU     = 'https://script.google.com/macros/s/AKfycby0gInL2oXQ5SdpuIYmy4GDFgsfLkrfFRX-yu51VOtUgU4BMyGROuG1cGu7esKRX__q/exec';
+var _TU      = 'https://script.google.com/macros/s/AKfycby0gInL2oXQ5SdpuIYmy4GDFgsfLkrfFRX-yu51VOtUgU4BMyGROuG1cGu7esKRX__q/exec';
+var _WORKER  = 'https://mx-ai-proxy.lntombela159.workers.dev';
 
 function track(event, detail) {
   try {
@@ -678,8 +679,9 @@ function sendAIMessage() {
     'Respond ONLY with a JSON object, no markdown:\n{"name":"...","summary":"...","code":"function runCleaningCode(data){...}"}';
 
   /* Use GAS proxy to avoid CORS — reuse existing analytics endpoint with action=ai */
-  fetch(_TU, {
+  fetch(_WORKER, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'ai', prompt: prompt })
   })
   .then(function(r) { return r.json(); })
