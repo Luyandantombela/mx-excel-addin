@@ -6,7 +6,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
 
-  <Id>e3b0c442-9d1a-4f6a-8b2e-1234567890ab</Id>
+  <Id>41455069-6227-4981-9b01-6b1528e922ff</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>MX Sheets</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
@@ -15,6 +15,7 @@
   <IconUrl DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-80.png"/>
   <SupportUrl DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/"/>
+  <AppVersion DefaultValue="1.0.0.0"/>
 
   <AppDomains>
     <AppDomain>https://Luyandantombela.github.io</AppDomain>
@@ -34,8 +35,6 @@
     <Hosts>
       <Host xsi:type="Workbook">
         <DesktopFormFactor>
-          <GetImage resid="Icon.16x16"/>
-          <FunctionFile resid="Commands.Url"/>
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
               <Group id="MXGroup">
@@ -75,7 +74,6 @@
         <bt:Image id="Icon.80x80" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/taskpane.html"/>
         <bt:Url id="Taskpane.Url" DefaultValue="https://Luyandantombela.github.io/mx-excel-addin/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
