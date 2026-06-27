@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy · MX Sheet Toolkit</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #1a7f5a;
+    --green-light: #e8f7f1;
+    --border: #c8e0d4;
+    --text: #1a2e24;
+    --muted: #5a7a6a;
+    --dark: #0f1f17;
+    --white: #ffffff;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f4faf7;
+    color: var(--text);
+    padding: 48px 20px 80px;
+    line-height: 1.7;
+  }
+
+  .wrap {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  .top-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--green-light);
+    color: var(--green);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 5px 14px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--dark);
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .meta {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 40px;
+  }
+
+  .card {
+    background: var(--white);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 16px;
+  }
+
+  h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  p { font-size: 15px; color: var(--text); margin-bottom: 12px; }
+  p:last-child { margin-bottom: 0; }
+
+  ul {
+    list-style: none;
+    margin: 8px 0 12px;
+  }
+
+  ul li {
+    font-size: 15px;
+    color: var(--text);
+    padding: 6px 0 6px 20px;
+    position: relative;
+    border-bottom: 1px solid var(--green-light);
+  }
+
+  ul li:last-child { border-bottom: none; }
+
+  ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+  }
+
+  .highlight {
+    background: var(--green-light);
+    border-left: 3px solid var(--green);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--green);
+    margin: 12px 0;
+  }
+
+  a { color: var(--green); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 40px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top-badge">Legal</div>
+  <h1>Privacy Policy</h1>
+  <p class="meta">MX Sheet Toolkit · Last updated: 27 June 2026</p>
+
+  <div class="card">
+    <h2>Overview</h2>
+    <p>MX Sheet Toolkit is an Excel add-in developed by Luyanda Ntombela. This policy explains what data is collected when you use the add-in, how it is used, and what is stored on your device.</p>
+    <div class="highlight">MX Sheet Toolkit does not collect, store, or transmit any of your spreadsheet data or file contents to any server.</div>
+  </div>
+
+  <div class="card">
+    <h2>Data we collect</h2>
+    <p>MX Sheet Toolkit collects minimal anonymous usage data for the purpose of understanding how the add-in is used and improving it over time. Specifically:</p>
+    <ul>
+      <li>A randomly generated anonymous user identifier (no name, email, or personal information)</li>
+      <li>Session events — which features were opened or used during a session</li>
+      <li>General usage frequency — how often the add-in is opened</li>
+    </ul>
+    <p>This data contains no personally identifiable information. It cannot be used to identify you.</p>
+  </div>
+
+  <div class="card">
+    <h2>How data is sent</h2>
+    <p>Anonymous usage events are sent to a Google Apps Script endpoint operated by the developer. This endpoint receives only the anonymous identifier and the event type — nothing about the content of your spreadsheet.</p>
+    <p>No data is shared with third-party advertising networks or sold to any party.</p>
+  </div>
+
+  <div class="card">
+    <h2>Local storage</h2>
+    <p>MX Sheet Toolkit stores one item in your browser's local storage:</p>
+    <ul>
+      <li>An anonymous user ID (<code style="background:var(--green-light);color:var(--green);padding:1px 5px;border-radius:4px;font-size:13px;">mxt_uid</code>) — a randomly generated string created on first use, used solely to group anonymous usage events from the same device</li>
+    </ul>
+    <p>This identifier is stored locally on your device only. It is never linked to your name, email address, Microsoft account, or any other personal information.</p>
+    <p>You can clear this at any time by clearing your browser or Office add-in local storage.</p>
+  </div>
+
+  <div class="card">
+    <h2>Your spreadsheet data</h2>
+    <div class="highlight">MX Sheet Toolkit processes your spreadsheet data entirely within Excel on your device. No cell values, formulas, file names, or any spreadsheet content is ever transmitted outside of Excel.</div>
+    <p>All data cleaning, searching, editing, and comparison features operate locally within your Excel session.</p>
+  </div>
+
+  <div class="card">
+    <h2>Third-party services</h2>
+    <p>MX Sheet Toolkit uses the following third-party service:</p>
+    <ul>
+      <li>Google Apps Script — used to receive anonymous usage events. Google's privacy policy applies to this service and can be found at <a href="https://policies.google.com/privacy" target="_blank">policies.google.com/privacy</a></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Data retention</h2>
+    <p>Anonymous usage data collected via Google Apps Script is retained for as long as necessary to understand usage patterns, and may be deleted at the developer's discretion. Because the data is anonymous and not linked to any individual, it cannot be retrieved or deleted on a per-user basis.</p>
+  </div>
+
+  <div class="card">
+    <h2>Children's privacy</h2>
+    <p>MX Sheet Toolkit is not directed at children under the age of 13 and does not knowingly collect data from children.</p>
+  </div>
+
+  <div class="card">
+    <h2>Changes to this policy</h2>
+    <p>This privacy policy may be updated from time to time. The date at the top of this page reflects when it was last revised. Continued use of MX Sheet Toolkit after any changes constitutes acceptance of the updated policy.</p>
+  </div>
+
+  <div class="card">
+    <h2>Contact</h2>
+    <p>If you have any questions about this privacy policy or how your data is handled, you can reach the developer at:</p>
+    <p><a href="mailto:lntombela159@gmail.com">luyandantombela@gmail.com</a></p>
+  </div>
+
+  <footer>MX Sheet Toolkit · by Luyanda Ntombela · <a href="https://Luyandantombela.github.io/mx-excel-addin/">Back to add-in</a></footer>
+
+</div>
+</body>
+</html>
