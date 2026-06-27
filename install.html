@@ -101,6 +101,29 @@
   #web-section { display: none; }
   #unknown-section { display: block; }
 
+  .btn-install {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px 24px;
+    background: var(--green);
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, transform 0.1s;
+    margin-bottom: 10px;
+  }
+
+  .btn-install:hover { background: #155f44; transform: translateY(-1px); }
+  .btn-install:active { transform: translateY(0); }
+  .btn-install svg { flex-shrink: 0; }
+
   .install-note {
     font-size: 13px;
     color: var(--muted);
@@ -280,27 +303,17 @@
   <!-- WINDOWS -->
   <div id="win-section">
     <p class="platform-label">Windows · Desktop Excel</p>
-    <ol class="steps">
-      <li>
-        <span class="step-num">1</span>
-        <span class="step-text">Copy the add-in URL below using the Copy button.</span>
-      </li>
-      <li>
-        <span class="step-num">2</span>
-        <span class="step-text">Open Excel → <strong>Insert</strong> → <strong>Get Add-ins</strong></span>
-      </li>
-      <li>
-        <span class="step-num">3</span>
-        <span class="step-text">Click <strong>My Add-ins</strong> → <strong>Upload My Add-in</strong> → paste the URL → click <strong>Upload</strong>.</span>
-      </li>
-      <li>
-        <span class="step-num">4</span>
-        <span class="step-text">MX Sheet Toolkit appears in your ribbon. Done.</span>
-      </li>
-    </ol>
-    <div class="url-copy-box">
-      <code id="win-url">https://Luyandantombela.github.io/mx-excel-addin/manifest.xml</code>
-      <button class="btn-copy" onclick="copyUrl('win-url', this)">Copy</button>
+    <a id="win-install-btn" href="#" class="btn-install" onclick="installWindows(event)">
+      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Add to Excel
+    </a>
+    <p class="install-note">Opens Excel and installs automatically. You'll see a confirmation prompt.</p>
+    <div id="win-fallback" style="display:none; margin-top:16px;">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Didn't work? Use the URL below instead — paste it into Excel via <strong>Insert → Get Add-ins → My Add-ins → Upload My Add-in</strong>.</p>
+      <div class="url-copy-box">
+        <code id="win-url">https://Luyandantombela.github.io/mx-excel-addin/manifest.xml</code>
+        <button class="btn-copy" onclick="copyUrl('win-url', this)">Copy</button>
+      </div>
     </div>
   </div>
 
@@ -413,6 +426,19 @@
     } else {
       document.getElementById('unknown-section').style.display = 'block';
     }
+  }
+
+  function installWindows(e) {
+    e.preventDefault();
+    const url = `ms-excel:oim|url|${encodeURIComponent(MANIFEST_URL)}`;
+    const a = document.createElement('a');
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => {
+      document.getElementById('win-fallback').style.display = 'block';
+    }, 3000);
   }
 
   function copyUrl(elId, btn) {
