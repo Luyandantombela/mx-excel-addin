@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Install MX Sheet Toolkit</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #1a7f5a;
+    --green-light: #e8f7f1;
+    --green-mid: #2da876;
+    --dark: #0f1f17;
+    --text: #1a2e24;
+    --muted: #5a7a6a;
+    --border: #c8e0d4;
+    --white: #ffffff;
+    --radius: 12px;
+    --amber: #b35c00;
+    --amber-bg: #fff4e6;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f4faf7;
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 20px 64px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--green-light);
+    color: var(--green);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 5px 14px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  .badge::before {
+    content: '';
+    width: 7px; height: 7px;
+    background: var(--green-mid);
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 700;
+    color: var(--dark);
+    letter-spacing: -0.02em;
+    text-align: center;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: var(--muted);
+    text-align: center;
+    max-width: 460px;
+    line-height: 1.6;
+    margin-bottom: 40px;
+  }
+
+  /* Platform detector */
+  .platform-card {
+    background: var(--white);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    margin-bottom: 16px;
+  }
+
+  .platform-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* Windows section */
+  #win-section { display: none; }
+  #mac-section { display: none; }
+  #web-section { display: none; }
+  #unknown-section { display: block; }
+
+  .btn-install {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px 24px;
+    background: var(--green);
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, transform 0.1s;
+    margin-bottom: 10px;
+  }
+
+  .btn-install:hover { background: #155f44; transform: translateY(-1px); }
+  .btn-install:active { transform: translateY(0); }
+
+  .btn-install svg { flex-shrink: 0; }
+
+  .install-note {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Steps for Mac/Web */
+  .steps { list-style: none; margin-top: 4px; }
+
+  .steps li {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .steps li:last-child { border-bottom: none; }
+
+  .step-num {
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    background: var(--green-light);
+    color: var(--green);
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+
+  .step-text { font-size: 14px; line-height: 1.6; color: var(--text); }
+  .step-text strong { font-weight: 600; }
+  .step-text code {
+    background: var(--green-light);
+    color: var(--green);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    word-break: break-all;
+  }
+
+  /* Download button */
+  .btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: var(--green-light);
+    color: var(--green);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    margin-top: 14px;
+    transition: background 0.15s;
+  }
+  .btn-download:hover { background: #d4efE6; }
+
+  /* Warning for unsupported */
+  .warn {
+    background: var(--amber-bg);
+    border: 1px solid #f5c97a;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--amber);
+    line-height: 1.6;
+    margin-top: 8px;
+  }
+
+  /* Platform switcher */
+  .switcher {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .sw-btn {
+    flex: 1;
+    padding: 9px 4px;
+    background: var(--white);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .sw-btn:hover { border-color: var(--green); color: var(--green); }
+  .sw-btn.active { background: var(--green); border-color: var(--green); color: white; }
+
+  .switcher-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 10px;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  /* Features strip */
+  .features {
+    display: flex;
+    gap: 24px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 480px;
+  }
+
+  .feature {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .feature svg { color: var(--green-mid); flex-shrink: 0; }
+
+  footer {
+    margin-top: 48px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="badge">Excel Add-in</div>
+
+<h1>MX Sheet Toolkit</h1>
+<p class="subtitle">Clean, search, edit and compare data directly from a selection — without leaving Excel.</p>
+
+<p class="switcher-label">Detected your platform — or choose manually:</p>
+
+<div class="switcher">
+  <button class="sw-btn" onclick="showPlatform('windows')" id="sw-win">Windows</button>
+  <button class="sw-btn" onclick="showPlatform('mac')" id="sw-mac">Mac</button>
+  <button class="sw-btn" onclick="showPlatform('web')" id="sw-web">Excel on web</button>
+</div>
+
+<div class="platform-card">
+
+  <!-- WINDOWS -->
+  <div id="win-section">
+    <p class="platform-label">Windows · Desktop Excel</p>
+    <a id="win-install-btn" href="#" class="btn-install" onclick="installWindows(event)">
+      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Add to Excel
+    </a>
+    <p class="install-note">Opens Excel and installs automatically. You'll see a confirmation prompt.</p>
+  </div>
+
+  <!-- MAC -->
+  <div id="mac-section">
+    <p class="platform-label">Mac · Desktop Excel</p>
+    <ol class="steps">
+      <li>
+        <span class="step-num">1</span>
+        <span class="step-text">Download the manifest file below and save it somewhere easy to find.</span>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <span class="step-text">Open Excel → <strong>Tools</strong> menu → <strong>Excel Add-ins</strong></span>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <span class="step-text">Click <strong>Browse…</strong> and select the downloaded manifest file.</span>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <span class="step-text">Tick <strong>MX Sheet Toolkit</strong> in the list → click <strong>OK</strong>. Done.</span>
+      </li>
+    </ol>
+    <a href="https://Luyandantombela.github.io/mx-excel-addin/manifest.xml" download="manifest.xml" class="btn-download">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg>
+      Download manifest.xml
+    </a>
+  </div>
+
+  <!-- WEB -->
+  <div id="web-section">
+    <p class="platform-label">Excel on the web</p>
+    <ol class="steps">
+      <li>
+        <span class="step-num">1</span>
+        <span class="step-text">In Excel online, click <strong>Insert</strong> → <strong>Add-ins</strong></span>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <span class="step-text">Click <strong>Upload My Add-in</strong> in the top right of the dialog.</span>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <span class="step-text">Download the manifest file below, then browse to it and click <strong>Upload</strong>.</span>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <span class="step-text">MX Sheet Toolkit will appear in your <strong>Home</strong> ribbon. Ready to use.</span>
+      </li>
+    </ol>
+    <a href="https://Luyandantombela.github.io/mx-excel-addin/manifest.xml" download="manifest.xml" class="btn-download">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg>
+      Download manifest.xml
+    </a>
+  </div>
+
+  <!-- UNKNOWN fallback -->
+  <div id="unknown-section">
+    <p class="platform-label">Choose your platform above</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.7;">Select Windows, Mac, or Excel on web above to see the right installation steps for your setup.</p>
+  </div>
+
+</div>
+
+<div class="features">
+  <span class="feature">
+    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    Free to install
+  </span>
+  <span class="feature">
+    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    Works inside Excel
+  </span>
+  <span class="feature">
+    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    No account needed
+  </span>
+</div>
+
+<footer>MX Sheet Toolkit · by Luyanda Ntombela</footer>
+
+<script>
+  const MANIFEST_URL = 'https://Luyandantombela.github.io/mx-excel-addin/manifest.xml';
+
+  function detectPlatform() {
+    const ua = navigator.userAgent;
+    if (/Win/i.test(ua)) return 'windows';
+    if (/Mac/i.test(ua)) return 'mac';
+    return 'unknown';
+  }
+
+  function showPlatform(platform) {
+    ['win-section','mac-section','web-section','unknown-section'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    ['sw-win','sw-mac','sw-web'].forEach(id => {
+      document.getElementById(id).classList.remove('active');
+    });
+
+    if (platform === 'windows') {
+      document.getElementById('win-section').style.display = 'block';
+      document.getElementById('sw-win').classList.add('active');
+    } else if (platform === 'mac') {
+      document.getElementById('mac-section').style.display = 'block';
+      document.getElementById('sw-mac').classList.add('active');
+    } else if (platform === 'web') {
+      document.getElementById('web-section').style.display = 'block';
+      document.getElementById('sw-web').classList.add('active');
+    } else {
+      document.getElementById('unknown-section').style.display = 'block';
+    }
+  }
+
+  function installWindows(e) {
+    e.preventDefault();
+    const protocol = `ms-excel:oim|url|${encodeURIComponent(MANIFEST_URL)}`;
+    window.location.href = protocol;
+    setTimeout(() => {
+      document.getElementById('win-section').innerHTML += `
+        <div class="warn" style="margin-top:16px;">
+          Didn't open? Make sure you have desktop Excel installed. 
+          If Excel is open already, try closing it first then clicking again.
+        </div>`;
+    }, 2500);
+  }
+
+  const detected = detectPlatform();
+  showPlatform(detected);
+</script>
+</body>
+</html>
