@@ -171,23 +171,44 @@
     word-break: break-all;
   }
 
-  /* Download button */
-  .btn-download {
-    display: inline-flex;
+  /* URL copy box */
+  .url-copy-box {
+    display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 18px;
-    background: var(--green-light);
-    color: var(--green);
-    border: 1px solid var(--border);
+    gap: 0;
+    border: 1.5px solid var(--border);
     border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    text-decoration: none;
+    overflow: hidden;
     margin-top: 14px;
-    transition: background 0.15s;
+    background: var(--green-light);
   }
-  .btn-download:hover { background: #d4efE6; }
+
+  .url-copy-box code {
+    flex: 1;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    color: var(--green);
+    padding: 10px 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .btn-copy {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    background: var(--green);
+    color: white;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-copy:hover { background: #155f44; }
+  .btn-copy.copied { background: #0a4a30; }
 
   /* Warning for unsupported */
   .warn {
@@ -296,25 +317,25 @@
     <ol class="steps">
       <li>
         <span class="step-num">1</span>
-        <span class="step-text">Download the manifest file below and save it somewhere easy to find.</span>
+        <span class="step-text">Copy the add-in URL below using the Copy button.</span>
       </li>
       <li>
         <span class="step-num">2</span>
-        <span class="step-text">Open Excel → <strong>Tools</strong> menu → <strong>Excel Add-ins</strong></span>
+        <span class="step-text">Open Excel → <strong>Insert</strong> menu → <strong>Get Add-ins</strong></span>
       </li>
       <li>
         <span class="step-num">3</span>
-        <span class="step-text">Click <strong>Browse…</strong> and select the downloaded manifest file.</span>
+        <span class="step-text">Click <strong>My Add-ins</strong> → <strong>Upload My Add-in</strong> → paste the URL → click <strong>Upload</strong>.</span>
       </li>
       <li>
         <span class="step-num">4</span>
-        <span class="step-text">Tick <strong>MX Sheet Toolkit</strong> in the list → click <strong>OK</strong>. Done.</span>
+        <span class="step-text">MX Sheet Toolkit appears in your ribbon. Done.</span>
       </li>
     </ol>
-    <a href="https://Luyandantombela.github.io/mx-excel-addin/manifest.xml" download="manifest.xml" class="btn-download">
-      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg>
-      Download manifest.xml
-    </a>
+    <div class="url-copy-box">
+      <code id="mac-url">https://Luyandantombela.github.io/mx-excel-addin/manifest.xml</code>
+      <button class="btn-copy" onclick="copyUrl('mac-url', this)">Copy</button>
+    </div>
   </div>
 
   <!-- WEB -->
@@ -323,25 +344,25 @@
     <ol class="steps">
       <li>
         <span class="step-num">1</span>
-        <span class="step-text">In Excel online, click <strong>Insert</strong> → <strong>Add-ins</strong></span>
+        <span class="step-text">Copy the add-in URL below using the Copy button.</span>
       </li>
       <li>
         <span class="step-num">2</span>
-        <span class="step-text">Click <strong>Upload My Add-in</strong> in the top right of the dialog.</span>
+        <span class="step-text">In Excel online, click <strong>Insert</strong> → <strong>Add-ins</strong></span>
       </li>
       <li>
         <span class="step-num">3</span>
-        <span class="step-text">Download the manifest file below, then browse to it and click <strong>Upload</strong>.</span>
+        <span class="step-text">Click <strong>Upload My Add-in</strong> → paste the URL → click <strong>Upload</strong>.</span>
       </li>
       <li>
         <span class="step-num">4</span>
         <span class="step-text">MX Sheet Toolkit will appear in your <strong>Home</strong> ribbon. Ready to use.</span>
       </li>
     </ol>
-    <a href="https://Luyandantombela.github.io/mx-excel-addin/manifest.xml" download="manifest.xml" class="btn-download">
-      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg>
-      Download manifest.xml
-    </a>
+    <div class="url-copy-box">
+      <code id="web-url">https://Luyandantombela.github.io/mx-excel-addin/manifest.xml</code>
+      <button class="btn-copy" onclick="copyUrl('web-url', this)">Copy</button>
+    </div>
   </div>
 
   <!-- UNKNOWN fallback -->
@@ -414,7 +435,16 @@
     }, 2500);
   }
 
-  const detected = detectPlatform();
+  function copyUrl(elId, btn) {
+    const text = document.getElementById(elId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  
   showPlatform(detected);
 </script>
 </body>
