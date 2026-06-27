@@ -792,7 +792,7 @@ function escHtml(str) {
 }
 
 /* ════ CLEAN (MANUAL) ════ */
-  if (!sel || sel.rowCount < 2) { showToast('Select data with at least a header + 1 data row.', true); return; }
+function openClean() {
   /* Merge .text over .values for any cell where the raw value is a number but
      the displayed text looks like a date — this replaces serial numbers with
      the string Excel already shows, exactly like the website sees it.
@@ -3170,44 +3170,40 @@ function evalBulkFormula(row, formula) {
   /* if no operators, treat as plain set */
   if (!/[+\-*\/()]/.test(expr) && isNaN(parseFloat(expr))) return formula;
   try {
-    var safe = expr.replace(/[^0-9.\-+*\/() ]/g, '');
-    var pos = 0;
-    function parseExpr() {
-      var left = parseTerm();
-      while (pos < safe.length && (safe[pos] === '+' || safe[pos] === '-')) {
-        var op = safe[pos++];
-        var right = parseTerm();
-        left = op === '+' ? left + right : left - right;
+    var safe = expr.replace(/[^0-9.\-+*\/() ]/g, '').trim();
+    /* Safe expression evaluator — no eval or Function() */
+    var tokens = safe.match(/(\d+\.?\d*|\.\d+|[+\-*\/()])/g) || [];
+    var idx = 0;
+    var evalExpr = function() {
+      var val = evalTerm();
+      while (idx < tokens.length && (tokens[idx] === '+' || tokens[idx] === '-')) {
+        var op = tokens[idx++];
+        val = op === '+' ? val + evalTerm() : val - evalTerm();
       }
-      return left;
-    }
-    function parseTerm() {
-      var left = parseFactor();
-      while (pos < safe.length && (safe[pos] === '*' || safe[pos] === '/')) {
-        var op = safe[pos++];
-        var right = parseFactor();
-        left = op === '*' ? left * right : (right !== 0 ? left / right : NaN);
+      return val;
+    };
+    var evalTerm = function() {
+      var val = evalFactor();
+      while (idx < tokens.length && (tokens[idx] === '*' || tokens[idx] === '/')) {
+        var op = tokens[idx++];
+        var right = evalFactor();
+        val = op === '*' ? val * right : (right !== 0 ? val / right : NaN);
       }
-      return left;
-    }
-    function parseFactor() {
-      while (pos < safe.length && safe[pos] === ' ') pos++;
-      if (safe[pos] === '(') {
-        pos++;
-        var val = parseExpr();
-        while (pos < safe.length && safe[pos] === ' ') pos++;
-        if (safe[pos] === ')') pos++;
+      return val;
+    };
+    var evalFactor = function() {
+      if (tokens[idx] === '(') {
+        idx++;
+        var val = evalExpr();
+        if (tokens[idx] === ')') idx++;
         return val;
       }
       var neg = false;
-      if (safe[pos] === '-') { neg = true; pos++; }
-      var start = pos;
-      while (pos < safe.length && (safe[pos] >= '0' && safe[pos] <= '9' || safe[pos] === '.')) pos++;
-      var num = parseFloat(safe.slice(start, pos));
-      while (pos < safe.length && safe[pos] === ' ') pos++;
+      if (tokens[idx] === '-') { neg = true; idx++; }
+      var num = parseFloat(tokens[idx++] || '0');
       return neg ? -num : num;
-    }
-    var result = parseExpr();
+    };
+    var result = evalExpr();
     if (isNaN(result) || !isFinite(result)) return null;
     /* preserve reasonable precision */
     return +parseFloat(result.toFixed(10));
