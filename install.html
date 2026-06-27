@@ -6,292 +6,65 @@
 <title>Install MX Sheet Toolkit</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --green: #1a7f5a;
-    --green-light: #e8f7f1;
-    --green-mid: #2da876;
-    --dark: #0f1f17;
-    --text: #1a2e24;
-    --muted: #5a7a6a;
-    --border: #c8e0d4;
-    --white: #ffffff;
-    --radius: 12px;
-    --amber: #b35c00;
-    --amber-bg: #fff4e6;
+    --green: #1a7f5a; --green-light: #e8f7f1; --green-mid: #2da876;
+    --dark: #0f1f17; --text: #1a2e24; --muted: #5a7a6a;
+    --border: #c8e0d4; --white: #ffffff; --radius: 12px;
+    --amber: #b35c00; --amber-bg: #fff4e6;
   }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #f4faf7;
-    color: var(--text);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 48px 20px 64px;
-  }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--green-light);
-    color: var(--green);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 5px 14px;
-    margin-bottom: 24px;
-    text-transform: uppercase;
-  }
-
-  .badge::before {
-    content: '';
-    width: 7px; height: 7px;
-    background: var(--green-mid);
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  h1 {
-    font-size: clamp(28px, 5vw, 42px);
-    font-weight: 700;
-    color: var(--dark);
-    letter-spacing: -0.02em;
-    text-align: center;
-    line-height: 1.15;
-    margin-bottom: 12px;
-  }
-
-  .subtitle {
-    font-size: 16px;
-    color: var(--muted);
-    text-align: center;
-    max-width: 460px;
-    line-height: 1.6;
-    margin-bottom: 40px;
-  }
-
-  /* Platform detector */
-  .platform-card {
-    background: var(--white);
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius);
-    padding: 32px;
-    width: 100%;
-    max-width: 480px;
-    margin-bottom: 16px;
-  }
-
-  .platform-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 16px;
-  }
-
-  /* Windows section */
-  #win-section { display: none; }
-  #mac-section { display: none; }
-  #web-section { display: none; }
-  #unknown-section { display: block; }
-
-  .btn-install {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
-    padding: 16px 24px;
-    background: var(--green);
-    color: white;
-    font-size: 16px;
-    font-weight: 600;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.15s, transform 0.1s;
-    margin-bottom: 10px;
-  }
-
-  .btn-install:hover { background: #155f44; transform: translateY(-1px); }
-  .btn-install:active { transform: translateY(0); }
-  .btn-install svg { flex-shrink: 0; }
-
-  .install-note {
-    font-size: 13px;
-    color: var(--muted);
-    text-align: center;
-    line-height: 1.5;
-  }
-
-  /* Steps for Mac/Web */
-  .steps { list-style: none; margin-top: 4px; }
-
-  .steps li {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .steps li:last-child { border-bottom: none; }
-
-  .step-num {
-    flex-shrink: 0;
-    width: 26px; height: 26px;
-    background: var(--green-light);
-    color: var(--green);
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: 1px;
-  }
-
-  .step-text { font-size: 14px; line-height: 1.6; color: var(--text); }
-  .step-text strong { font-weight: 600; }
-  .step-text code {
-    background: var(--green-light);
-    color: var(--green);
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: 'SF Mono', 'Consolas', monospace;
-    word-break: break-all;
-  }
-
-  /* URL copy box */
-  .url-copy-box {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    margin-top: 14px;
-    background: var(--green-light);
-  }
-
-  .url-copy-box code {
-    flex: 1;
-    font-size: 11px;
-    font-family: 'SF Mono', 'Consolas', monospace;
-    color: var(--green);
-    padding: 10px 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .btn-copy {
-    flex-shrink: 0;
-    padding: 10px 16px;
-    background: var(--green);
-    color: white;
-    border: none;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
-  }
-
-  .btn-copy:hover { background: #155f44; }
-  .btn-copy.copied { background: #0a4a30; }
-
-  /* Warning for unsupported */
-  .warn {
-    background: var(--amber-bg);
-    border: 1px solid #f5c97a;
-    border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 14px;
-    color: var(--amber);
-    line-height: 1.6;
-    margin-top: 8px;
-  }
-
-  /* Platform switcher */
-  .switcher {
-    width: 100%;
-    max-width: 480px;
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-
-  .sw-btn {
-    flex: 1;
-    padding: 9px 4px;
-    background: var(--white);
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4faf7; color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 48px 20px 64px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; background: var(--green-light); color: var(--green); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; padding: 5px 14px; margin-bottom: 24px; text-transform: uppercase; }
+  .badge::before { content: ''; width: 7px; height: 7px; background: var(--green-mid); border-radius: 50%; display: inline-block; }
+  h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 700; color: var(--dark); letter-spacing: -0.02em; text-align: center; line-height: 1.15; margin-bottom: 12px; }
+  .subtitle { font-size: 16px; color: var(--muted); text-align: center; max-width: 460px; line-height: 1.6; margin-bottom: 40px; }
+  .switcher-label { font-size: 11px; color: var(--muted); text-align: center; margin-bottom: 10px; width: 100%; max-width: 520px; }
+  .switcher { width: 100%; max-width: 520px; display: flex; gap: 8px; margin-bottom: 8px; }
+  .sw-btn { flex: 1; padding: 9px 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.15s; }
   .sw-btn:hover { border-color: var(--green); color: var(--green); }
   .sw-btn.active { background: var(--green); border-color: var(--green); color: white; }
-
-  .switcher-label {
-    font-size: 11px;
-    color: var(--muted);
-    text-align: center;
-    margin-bottom: 10px;
-    width: 100%;
-    max-width: 480px;
-  }
-
-  /* Features strip */
-  .features {
-    display: flex;
-    gap: 24px;
-    margin-top: 40px;
-    flex-wrap: wrap;
-    justify-content: center;
-    max-width: 480px;
-  }
-
-  .feature {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .feature svg { color: var(--green-mid); flex-shrink: 0; }
-
-  footer {
-    margin-top: 48px;
-    font-size: 12px;
-    color: var(--muted);
-    text-align: center;
-  }
+  .platform-card { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 520px; margin-bottom: 16px; }
+  .platform-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  /* Video embed */
+  .video-wrap { position: relative; width: 100%; padding-top: 56.25%; border-radius: 10px; overflow: hidden; background: #0f1f17; margin-bottom: 16px; }
+  .video-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+  .video-coming { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .video-coming svg { opacity: 0.4; }
+  .video-coming p { font-size: 13px; color: rgba(255,255,255,0.4); }
+  /* Download button */
+  .btn-download { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px 24px; background: var(--green); color: white; font-size: 15px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; text-decoration: none; transition: background 0.15s, transform 0.1s; margin-bottom: 10px; }
+  .btn-download:hover { background: #155f44; transform: translateY(-1px); }
+  .btn-download:active { transform: translateY(0); }
+  .install-note { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; margin-top: 8px; }
+  /* Steps */
+  .steps { list-style: none; margin-top: 4px; }
+  .steps li { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .steps li:last-child { border-bottom: none; }
+  .step-num { flex-shrink: 0; width: 26px; height: 26px; background: var(--green-light); color: var(--green); border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .step-text { font-size: 14px; line-height: 1.6; color: var(--text); }
+  .step-text strong { font-weight: 600; }
+  /* URL copy */
+  .url-copy-box { display: flex; align-items: center; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 14px; background: var(--green-light); }
+  .url-copy-box code { flex: 1; font-size: 11px; font-family: 'SF Mono', 'Consolas', monospace; color: var(--green); padding: 10px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btn-copy { flex-shrink: 0; padding: 10px 16px; background: var(--green); color: white; border: none; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+  .btn-copy:hover { background: #155f44; }
+  .btn-copy.copied { background: #0a4a30; }
+  /* Coming soon badge */
+  .coming-soon { display: inline-flex; align-items: center; gap: 6px; background: var(--amber-bg); color: var(--amber); border: 1px solid #f5c97a; border-radius: 6px; font-size: 11px; font-weight: 600; padding: 4px 10px; margin-bottom: 12px; }
+  /* Hidden */
+  #win-section, #mac-section, #web-section, #unknown-section { display: none; }
+  /* Features */
+  .features { display: flex; gap: 24px; margin-top: 40px; flex-wrap: wrap; justify-content: center; max-width: 520px; }
+  .feature { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  footer { margin-top: 48px; font-size: 12px; color: var(--muted); text-align: center; }
 </style>
 </head>
 <body>
 
 <div class="badge">Excel Add-in</div>
-
 <h1>MX Sheet Toolkit</h1>
 <p class="subtitle">Clean, search, edit and compare data directly from a selection — without leaving Excel.</p>
 
 <p class="switcher-label">Detected your platform — or choose manually:</p>
-
 <div class="switcher">
   <button class="sw-btn" onclick="showPlatform('windows')" id="sw-win">Windows</button>
   <button class="sw-btn" onclick="showPlatform('mac')" id="sw-mac">Mac</button>
@@ -303,40 +76,33 @@
   <!-- WINDOWS -->
   <div id="win-section">
     <p class="platform-label">Windows · Desktop Excel</p>
-    <a id="win-install-btn" href="#" class="btn-install" onclick="installWindows(event)">
-      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-      Add to Excel
-    </a>
-    <p class="install-note">Opens Excel and installs automatically. You'll see a confirmation prompt.</p>
-    <div id="win-fallback" style="display:none; margin-top:16px;">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Didn't work? Use the URL below instead — paste it into Excel via <strong>Insert → Get Add-ins → My Add-ins → Upload My Add-in</strong>.</p>
-      <div class="url-copy-box">
-        <code id="win-url">https://Luyandantombela.github.io/mx-excel-addin/manifest.xml</code>
-        <button class="btn-copy" onclick="copyUrl('win-url', this)">Copy</button>
-      </div>
+    <!-- VIDEO — replace YOUR_YOUTUBE_VIDEO_ID with actual ID -->
+    <div class="video-wrap">
+      <iframe id="win-video"
+        src="https://www.youtube.com/embed/TSf8wT1v3UQ"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+      </iframe>
     </div>
+    <a href="https://Luyandantombela.github.io/mx-excel-addin/manifest.xml" download="manifest.xml" class="btn-download">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg>
+      Download manifest.xml
+    </a>
+    <p class="install-note">Follow the video above to install. The file downloads to your device — your browser may warn you, just click Keep.</p>
   </div>
 
   <!-- MAC -->
   <div id="mac-section">
     <p class="platform-label">Mac · Desktop Excel</p>
+    <div class="coming-soon">
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Video guide coming soon
+    </div>
     <ol class="steps">
-      <li>
-        <span class="step-num">1</span>
-        <span class="step-text">Copy the add-in URL below using the Copy button.</span>
-      </li>
-      <li>
-        <span class="step-num">2</span>
-        <span class="step-text">Open Excel → <strong>Insert</strong> menu → <strong>Get Add-ins</strong></span>
-      </li>
-      <li>
-        <span class="step-num">3</span>
-        <span class="step-text">Click <strong>My Add-ins</strong> → <strong>Upload My Add-in</strong> → paste the URL → click <strong>Upload</strong>.</span>
-      </li>
-      <li>
-        <span class="step-num">4</span>
-        <span class="step-text">MX Sheet Toolkit appears in your ribbon. Done.</span>
-      </li>
+      <li><span class="step-num">1</span><span class="step-text">Copy the add-in URL below.</span></li>
+      <li><span class="step-num">2</span><span class="step-text">Open Excel → <strong>Insert</strong> → <strong>Get Add-ins</strong></span></li>
+      <li><span class="step-num">3</span><span class="step-text">Click <strong>My Add-ins</strong> → <strong>Upload My Add-in</strong> → paste the URL → <strong>Upload</strong>.</span></li>
+      <li><span class="step-num">4</span><span class="step-text">MX Sheet Toolkit appears in your ribbon. Done.</span></li>
     </ol>
     <div class="url-copy-box">
       <code id="mac-url">https://Luyandantombela.github.io/mx-excel-addin/manifest.xml</code>
@@ -347,23 +113,15 @@
   <!-- WEB -->
   <div id="web-section">
     <p class="platform-label">Excel on the web</p>
+    <div class="coming-soon">
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Video guide coming soon
+    </div>
     <ol class="steps">
-      <li>
-        <span class="step-num">1</span>
-        <span class="step-text">Copy the add-in URL below using the Copy button.</span>
-      </li>
-      <li>
-        <span class="step-num">2</span>
-        <span class="step-text">In Excel online, click <strong>Insert</strong> → <strong>Add-ins</strong></span>
-      </li>
-      <li>
-        <span class="step-num">3</span>
-        <span class="step-text">Click <strong>Upload My Add-in</strong> → paste the URL → click <strong>Upload</strong>.</span>
-      </li>
-      <li>
-        <span class="step-num">4</span>
-        <span class="step-text">MX Sheet Toolkit will appear in your <strong>Home</strong> ribbon. Ready to use.</span>
-      </li>
+      <li><span class="step-num">1</span><span class="step-text">Copy the add-in URL below.</span></li>
+      <li><span class="step-num">2</span><span class="step-text">In Excel online, click <strong>Insert</strong> → <strong>Add-ins</strong></span></li>
+      <li><span class="step-num">3</span><span class="step-text">Click <strong>Upload My Add-in</strong> → paste the URL → <strong>Upload</strong>.</span></li>
+      <li><span class="step-num">4</span><span class="step-text">MX Sheet Toolkit appears in your Home ribbon. Done.</span></li>
     </ol>
     <div class="url-copy-box">
       <code id="web-url">https://Luyandantombela.github.io/mx-excel-addin/manifest.xml</code>
@@ -371,7 +129,7 @@
     </div>
   </div>
 
-  <!-- UNKNOWN fallback -->
+  <!-- UNKNOWN -->
   <div id="unknown-section">
     <p class="platform-label">Choose your platform above</p>
     <p style="font-size:14px;color:var(--muted);line-height:1.7;">Select Windows, Mac, or Excel on web above to see the right installation steps for your setup.</p>
@@ -380,25 +138,14 @@
 </div>
 
 <div class="features">
-  <span class="feature">
-    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-    Free to install
-  </span>
-  <span class="feature">
-    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-    Works inside Excel
-  </span>
-  <span class="feature">
-    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-    No account needed
-  </span>
+  <span class="feature"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Free to install</span>
+  <span class="feature"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Works inside Excel</span>
+  <span class="feature"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>No account needed</span>
 </div>
 
-<footer>MX Sheet Toolkit · by Luyanda Ntombela</footer>
+<footer>MX Sheet Toolkit · by Luyanda Ntombela · <a href="https://Luyandantombela.github.io/mx-excel-addin/privacy.html" style="color:var(--green)">Privacy Policy</a></footer>
 
 <script>
-  const MANIFEST_URL = 'https://Luyandantombela.github.io/mx-excel-addin/manifest.xml';
-
   function detectPlatform() {
     const ua = navigator.userAgent;
     if (/Win/i.test(ua)) return 'windows';
@@ -413,7 +160,6 @@
     ['sw-win','sw-mac','sw-web'].forEach(id => {
       document.getElementById(id).classList.remove('active');
     });
-
     if (platform === 'windows') {
       document.getElementById('win-section').style.display = 'block';
       document.getElementById('sw-win').classList.add('active');
@@ -428,19 +174,6 @@
     }
   }
 
-  function installWindows(e) {
-    e.preventDefault();
-    const url = `ms-excel:oim|url|${encodeURIComponent(MANIFEST_URL)}`;
-    const a = document.createElement('a');
-    a.href = url;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => {
-      document.getElementById('win-fallback').style.display = 'block';
-    }, 3000);
-  }
-
   function copyUrl(elId, btn) {
     const text = document.getElementById(elId).textContent;
     navigator.clipboard.writeText(text).then(() => {
@@ -450,8 +183,7 @@
     });
   }
 
-  
-  showPlatform(detected);
+  showPlatform(detectPlatform());
 </script>
 </body>
 </html>
