@@ -678,8 +678,10 @@ function sendAIMessage() {
     'Respond ONLY with a JSON object, no markdown:\n{"name":"...","summary":"...","code":"function runCleaningCode(data){...}"}';
 
   /* Use GAS proxy to avoid CORS — reuse existing analytics endpoint with action=ai */
-  fetch(_TU + '?action=ai&prompt=' + encodeURIComponent(prompt), {
-    method: 'GET'
+  fetch(_TU, {
+    method: 'POST',
+    contentType: 'application/json',
+    body: JSON.stringify({ action: 'ai', prompt: prompt })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
