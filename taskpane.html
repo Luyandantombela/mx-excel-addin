@@ -689,40 +689,51 @@ function sendAIMessage() {
   var headers    = sel.values[0];
   var dataSample = sel.values.slice(0, 8); /* up to 7 data rows sent for accuracy */
 
-  /* Build a conversation-aware prompt — keep only the last 2 exchanges
-     (4 messages) so the prompt never grows too large and times out.     */
-  var historyStr = '';
-  if (aiConversation.length > 1) {
-    var prev = aiConversation.slice(0, -1);           /* drop the just-added user message */
-    var recentPrev = prev.slice(-4);                  /* at most last 4 messages (~2 turns) */
-    historyStr = '\n\nPREVIOUS EXCHANGES (summary only — do not repeat the code, just the intent):\n' +
-      recentPrev.map(function(m) {
-        /* Truncate long AI responses so they don't blow up the prompt */
-        var content = m.content.length > 300 ? m.content.slice(0, 300) + '…' : m.content;
-        return (m.role === 'user' ? 'User: ' : 'AI did: ') + content;
-      }).join('\n');
-  }
+  /* Build the prompt.
+     If there is already a working draft (refinement), pass the previous code
+     so the AI can modify it in-place rather than regenerating from scratch.
+     This is the main fix for follow-up messages like "add decimal places". */
+  var isRefinement = (aiConversation.length > 1) && currentDraftWorkflow && currentDraftWorkflow.code;
+  var prompt;
 
-  var prompt =
-    'You are a data cleaning code generator for Microsoft Excel.\n\n' +
-    'COLUMN HEADERS: ' + JSON.stringify(headers) + '\n' +
-    'SAMPLE DATA (rows 1-7): ' + JSON.stringify(dataSample.slice(1)) + '\n' +
-    historyStr + '\n\n' +
-    'USER REQUEST: ' + text + '\n\n' +
-    'TASK: Write a JavaScript function `runCleaningCode(data)` where:\n' +
-    '  - `data` is a 2D array, first row is headers\n' +
-    '  - Returns the cleaned 2D array (with headers as first row)\n' +
-    '  - Uses only vanilla JS (no imports, no fetch, no eval)\n' +
-    '  - Deep-copies input before modifying (never mutate the original)\n' +
-    '  - Handles null/undefined/empty string cells without throwing\n' +
-    '  - Removes blank rows AFTER applying all other transforms\n\n' +
-    'CRITICAL OUTPUT RULES:\n' +
-    '  1. Output ONLY a raw JSON object — no markdown, no code fences, no prose before or after\n' +
-    '  2. All string values inside the JSON must use escaped double-quotes\n' +
-    '  3. The `code` value must be a single-line-safe JS function string\n' +
-    '  4. Schema (all 4 keys required):\n' +
-    '     {"name":"max 5 words","summary":"max 15 words","explanation":"2-4 sentences what the code does","code":"function runCleaningCode(data){...}"}\n\n' +
-    'START YOUR RESPONSE WITH { AND END WITH } — NOTHING ELSE.';
+  if (isRefinement) {
+    /* ── Refinement prompt — shorter, includes the existing code ── */
+    prompt =
+      'You are a data cleaning code generator for Microsoft Excel.\n\n' +
+      'COLUMN HEADERS: ' + JSON.stringify(headers) + '\n\n' +
+      'EXISTING FUNCTION (modify this — do NOT rewrite from scratch):\n' +
+      currentDraftWorkflow.code + '\n\n' +
+      'CHANGE REQUESTED BY USER: ' + text + '\n\n' +
+      'INSTRUCTIONS:\n' +
+      '  - Apply only the requested change to the function above.\n' +
+      '  - Keep all other transforms unchanged.\n' +
+      '  - The function signature must remain: function runCleaningCode(data)\n' +
+      '  - Returns the cleaned 2D array (headers as first row).\n\n' +
+      'OUTPUT — a single raw JSON object, nothing else:\n' +
+      '{"name":"max 5 words","summary":"max 15 words","explanation":"1-2 sentences","code":"function runCleaningCode(data){...}"}\n\n' +
+      'RULES: No markdown, no code fences, no prose. START WITH { END WITH }.';
+  } else {
+    /* ── First-message prompt — full instructions with data sample ── */
+    prompt =
+      'You are a data cleaning code generator for Microsoft Excel.\n\n' +
+      'COLUMN HEADERS: ' + JSON.stringify(headers) + '\n' +
+      'SAMPLE DATA (rows 1-7): ' + JSON.stringify(dataSample.slice(1)) + '\n\n' +
+      'USER REQUEST: ' + text + '\n\n' +
+      'TASK: Write a JavaScript function `runCleaningCode(data)` where:\n' +
+      '  - `data` is a 2D array, first row is headers\n' +
+      '  - Returns the cleaned 2D array (with headers as first row)\n' +
+      '  - Uses only vanilla JS (no imports, no fetch, no eval)\n' +
+      '  - Deep-copies input before modifying (never mutate the original)\n' +
+      '  - Handles null/undefined/empty string cells without throwing\n' +
+      '  - Removes blank rows AFTER applying all other transforms\n\n' +
+      'CRITICAL OUTPUT RULES:\n' +
+      '  1. Output ONLY a raw JSON object — no markdown, no code fences, no prose before or after\n' +
+      '  2. All string values inside the JSON must use escaped double-quotes\n' +
+      '  3. The `code` value must be a single-line JS function string (use \\n for newlines inside)\n' +
+      '  4. Schema (all 4 keys required):\n' +
+      '     {"name":"max 5 words","summary":"max 15 words","explanation":"2-4 sentences","code":"function runCleaningCode(data){...}"}\n\n' +
+      'START YOUR RESPONSE WITH { AND END WITH } — NOTHING ELSE.';
+  }
 
 
   fetch(_WORKER, {
@@ -762,6 +773,33 @@ function sendAIMessage() {
     if (!parsed && data.result && typeof data.result === 'object') {
       var nested = data.result.content || data.result.text || data.result.message || '';
       try { parsed = JSON.parse(nested); } catch(e) { /* fall through */ }
+    }
+
+    /* Strategy 4 — extract the function body directly using brace-matching.
+       This handles the case where the AI wraps output in markdown or adds prose
+       and the JSON has un-escaped newlines inside the "code" string value.     */
+    if (!parsed || !parsed.code) {
+      var fnIdx = raw.indexOf('function runCleaningCode');
+      if (fnIdx !== -1) {
+        var depth4 = 0, fnEnd4 = -1;
+        for (var ci = fnIdx; ci < raw.length; ci++) {
+          if (raw[ci] === '{') depth4++;
+          else if (raw[ci] === '}') { depth4--; if (depth4 === 0) { fnEnd4 = ci + 1; break; } }
+        }
+        if (fnEnd4 !== -1) {
+          var extractedCode = raw.slice(fnIdx, fnEnd4);
+          /* Try to grab name/summary/explanation from whatever JSON-ish text is around */
+          var nameM = raw.match(/"name"\s*:\s*"([^"]{1,60})"/);
+          var sumM  = raw.match(/"summary"\s*:\s*"([^"]{1,120})"/);
+          var expM  = raw.match(/"explanation"\s*:\s*"([^"]{1,400})"/);
+          parsed = {
+            name:        nameM ? nameM[1]  : 'Cleaning workflow',
+            summary:     sumM  ? sumM[1]   : 'Updated cleaning code',
+            explanation: expM  ? expM[1]   : 'Applied your requested changes.',
+            code:        extractedCode
+          };
+        }
+      }
     }
 
     if (!parsed || !parsed.code) {
