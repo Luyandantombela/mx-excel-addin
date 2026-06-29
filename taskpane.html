@@ -383,11 +383,11 @@ html,body{
   </div>
   <div class="panel-footer" style="flex-direction:column;gap:8px;padding:10px 14px">
     <div id="ai-chat-footer" style="display:none;width:100%">
-      <button class="primary-btn" onclick="saveCurrentWorkflow()" style="margin-bottom:8px;background:#4caf81;border-color:#4caf81">
-        <i class="ti ti-device-floppy" style="margin-right:6px"></i>Save workflow &amp; apply
+      <button class="primary-btn" id="ai-save-btn" onclick="saveCurrentWorkflow()" style="margin-bottom:8px;background:#4caf81;">
+        <i class="ti ti-device-floppy" style="margin-right:6px"></i>Save cleaning setup
       </button>
-      <button onclick="openAIChat()" style="width:100%;padding:9px;background:transparent;border:1px solid var(--b1);border-radius:8px;color:var(--t2);font-size:12px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">
-        Make changes
+      <button onclick="continueAIChat()" style="width:100%;padding:9px;background:transparent;border:1px solid var(--b1);border-radius:8px;color:var(--t2);font-size:12px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">
+        <i class="ti ti-message-reply" style="margin-right:5px"></i>Make changes
       </button>
     </div>
     <div id="ai-input-area" style="display:flex;gap:8px;width:100%">
@@ -468,6 +468,11 @@ var sel       = null;
 var colTypes  = [];
 var issues    = null;
 var fmtColKeys = [];   // kept in module scope so add-col can update
+
+/* ════ AI STATE ════ */
+var aiConversation       = [];   // full turn history [{role,content}]
+var currentDraftWorkflow = null; // workflow built in current session
+var lastAISheetName      = null; // name of sheet last created by AI (so we can delete & replace)
 
 /* ════ ANALYTICS ════ */
 var _tid = (function() {
@@ -561,7 +566,7 @@ function handleFeature(f) {
 
 /* ════ STEP 1 ════ */
 /* ════ AI CLEAN ════ */
-var AI_NOTICE_KEY = 'mxt_ai_notice_seen';
+var AI_NOTICE_KEY    = 'mxt_ai_notice_seen';
 var AI_WORKFLOWS_KEY = 'mxt_ai_workflows';
 
 function openManualClean() { openClean(); }
@@ -589,7 +594,7 @@ function openAIWorkflows() {
   }
 
   var body = document.getElementById('workflows-body');
-  var sub = document.getElementById('workflows-sub');
+  var sub  = document.getElementById('workflows-sub');
   body.innerHTML = '';
   sub.textContent = 'Your saved workflows for this data';
 
@@ -607,15 +612,29 @@ function openAIWorkflows() {
   show('ai-workflows');
 }
 
+/* ── Start a brand-new chat session (resets everything) ── */
 function openAIChat() {
-  /* reset chat state */
   document.getElementById('ai-messages').innerHTML = '';
-  document.getElementById('ai-input').value = '';
-  aiConversation = [];
+  document.getElementById('ai-input').value       = '';
+  document.getElementById('ai-chat-footer').style.display = 'none';
+  document.getElementById('ai-input-area').style.display  = 'flex';
+  aiConversation       = [];
   currentDraftWorkflow = null;
-  var footer = document.getElementById('ai-chat-footer');
-  if (footer) footer.style.display = 'none';
+  lastAISheetName      = null;
   show('ai-chat');
+}
+
+/* ── Continue an existing session — just show the input again ── */
+function continueAIChat() {
+  document.getElementById('ai-chat-footer').style.display = 'none';
+  document.getElementById('ai-input-area').style.display  = 'flex';
+  document.getElementById('ai-input').focus();
+  var hint = document.createElement('div');
+  hint.className = 'ai-msg ai';
+  hint.textContent = 'Sure — what would you like me to change?';
+  var msgs = document.getElementById('ai-messages');
+  msgs.appendChild(hint);
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
 function buildWorkflowCard(w, canRun) {
@@ -630,7 +649,7 @@ function buildWorkflowCard(w, canRun) {
     '</div>' +
     '<i class="ti ti-' + (canRun ? 'player-play' : 'lock') + '" style="color:var(--t3);flex-shrink:0;font-size:14px"></i>';
   if (canRun) {
-    card.addEventListener('click', function() { runWorkflow(w); });
+    card.addEventListener('click', function() { runWorkflow(w, null); });
   } else {
     card.title = 'This workflow was built for different columns';
   }
@@ -642,127 +661,144 @@ function getWorkflows() {
 }
 
 function saveWorkflow(w) {
-  var list = getWorkflows();
+  /* Replace existing entry with same id, otherwise prepend */
+  var list = getWorkflows().filter(function(x) { return x.id !== w.id; });
   list.unshift(w);
   localStorage.setItem(AI_WORKFLOWS_KEY, JSON.stringify(list.slice(0, 20)));
 }
 
-/* ── AI Chat ── */
-var currentDraftWorkflow = null;
+/* ══════════════════════════════════════════════
+   AI CHAT — multi-turn, auto-apply on each reply
+   ══════════════════════════════════════════════ */
 
 function sendAIMessage() {
   var input = document.getElementById('ai-input');
-  var text = input.value.trim();
+  var text  = input.value.trim();
   if (!text) return;
   input.value = '';
 
   addAIMessage('user', text);
+  aiConversation.push({ role: 'user', content: text });
 
-  var thinkEl = addAIMessage('thinking', 'Building your workflow…');
-  document.getElementById('ai-send-btn').disabled = true;
-  document.getElementById('ai-input-area').style.display = 'none';
-  document.getElementById('ai-chat-footer').style.display = 'none';
+  var thinkEl = addAIMessage('thinking', 'Working on your data…');
+  document.getElementById('ai-send-btn').disabled          = true;
+  document.getElementById('ai-input-area').style.display   = 'none';
+  document.getElementById('ai-chat-footer').style.display  = 'none';
 
-  var headers = sel.values[0];
-  var dataSample = sel.values.slice(0, 7);
+  var headers    = sel.values[0];
+  var dataSample = sel.values.slice(0, 8); /* up to 7 data rows sent for accuracy */
 
-  var prompt = 'You are a data cleaning code generator for Microsoft Excel.\n\n' +
-    'The user has data with these headers: ' + JSON.stringify(headers) + '\n' +
-    'Sample rows: ' + JSON.stringify(dataSample.slice(1)) + '\n\n' +
-    'User request: ' + text + '\n\n' +
-    'Write a JavaScript function called runCleaningCode(data) that accepts a 2D array (first row is headers) and returns the cleaned 2D array.\n' +
-    'Also provide a short workflow name (max 5 words) and a one-line summary (max 15 words).\n\n' +
-    'Rules:\n- First row is always headers, preserve it\n- Return full 2D array including headers\n- Use only vanilla JavaScript\n- Handle empty/null cells gracefully\n\n' +
-    'Respond ONLY with a JSON object, no markdown:\n{"name":"...","summary":"...","code":"function runCleaningCode(data){...}"}';
+  /* Build a conversation-aware prompt ─────────────────────────────────── */
+  var historyStr = '';
+  if (aiConversation.length > 1) {
+    var prev = aiConversation.slice(0, -1); /* everything except the message we just added */
+    historyStr = '\n\nConversation so far:\n' + prev.map(function(m) {
+      return (m.role === 'user' ? 'User: ' : 'AI: ') + m.content;
+    }).join('\n');
+  }
 
-  /* Use GAS proxy to avoid CORS — reuse existing analytics endpoint with action=ai */
+  var prompt =
+    'You are a data cleaning code generator for Microsoft Excel.\n\n' +
+    'Data headers: ' + JSON.stringify(headers) + '\n' +
+    'Sample rows (first 7): ' + JSON.stringify(dataSample.slice(1)) + '\n' +
+    historyStr + '\n\n' +
+    'Latest user request: ' + text + '\n\n' +
+    'Write a JavaScript function called runCleaningCode(data) that:\n' +
+    '- Accepts a 2D array (first row = headers)\n' +
+    '- Returns the fully cleaned 2D array (headers row included)\n' +
+    '- Uses only vanilla JavaScript\n' +
+    '- Handles null/empty cells gracefully\n' +
+    '- NEVER modifies the original array passed in\n\n' +
+    'Also write a short plain-English explanation (2-4 sentences) of exactly what the code does.\n' +
+    'Also write a short workflow name (max 5 words) and a one-line summary (max 15 words).\n\n' +
+    'Respond ONLY with a JSON object, no markdown fences:\n' +
+    '{"name":"...","summary":"...","explanation":"...","code":"function runCleaningCode(data){...}"}';
+
   fetch(_WORKER, {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'ai', prompt: prompt })
+    body:    JSON.stringify({ action: 'ai', prompt: prompt })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     thinkEl.remove();
-    document.getElementById('ai-send-btn').disabled = false;
-    document.getElementById('ai-input-area').style.display = 'flex';
-
-    var raw = data.result || '';
+    var raw = (data.result || '').replace(/```json|```/g, '').trim();
     var parsed;
-    try {
-      parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-    } catch(e) {
-      addAIMessage('ai', 'Hmm, I had trouble understanding that. Could you rephrase what you want done to your data?');
+    try { parsed = JSON.parse(raw); } catch(e) { parsed = null; }
+
+    if (!parsed || !parsed.code) {
+      var errMsg = 'Hmm, I had trouble parsing that. Could you rephrase what you want done?';
+      addAIMessage('ai', errMsg);
+      aiConversation.push({ role: 'assistant', content: errMsg });
+      document.getElementById('ai-send-btn').disabled        = false;
       document.getElementById('ai-input-area').style.display = 'flex';
       return;
     }
 
+    /* Store the draft workflow (with a stable id so re-saves overwrite) */
     currentDraftWorkflow = {
-      id: Date.now().toString(36),
-      name: parsed.name,
-      summary: parsed.summary,
-      code: parsed.code,
+      id:      currentDraftWorkflow ? currentDraftWorkflow.id : Date.now().toString(36),
+      name:    parsed.name    || 'Cleaning workflow',
+      summary: parsed.summary || parsed.explanation || '',
+      code:    parsed.code,
       headers: headers.join('|'),
       created: new Date().toLocaleDateString()
     };
 
-    addAIMessage('ai', 'Got it! Here\'s what I\'ll do:\n\n' + parsed.summary + '\n\nI\'ll call this workflow "' + parsed.name + '". Happy with that? Hit Save below to apply it, or tell me what you\'d like to change.');
-    document.getElementById('ai-chat-footer').style.display = 'block';
+    /* Push the AI explanation into conversation history */
+    aiConversation.push({ role: 'assistant', content: parsed.explanation || parsed.summary || '' });
+
+    /* ── Auto-apply: delete previous AI sheet (if any) and create new one ── */
+    applyWorkflowInChat(currentDraftWorkflow, parsed.explanation || parsed.summary || '');
   })
   .catch(function() {
     thinkEl.remove();
-    document.getElementById('ai-send-btn').disabled = false;
+    document.getElementById('ai-send-btn').disabled        = false;
     document.getElementById('ai-input-area').style.display = 'flex';
     addAIMessage('ai', 'I couldn\'t connect right now. Check your internet connection and try again.');
   });
 }
 
-function saveCurrentWorkflow() {
-  if (!currentDraftWorkflow) return;
-  saveWorkflow(currentDraftWorkflow);
-  runWorkflow(currentDraftWorkflow);
-}
+/* Apply the workflow inside the chat view (auto-runs, shows result in chat) */
+function applyWorkflowInChat(w, explanation) {
+  var cleanFn;
+  try   { cleanFn = new Function('return (' + w.code + ')')(); }
+  catch (e) {
+    addAIMessage('ai', 'The code I generated has a syntax error: ' + e.message + '. Tell me what to fix.');
+    document.getElementById('ai-send-btn').disabled        = false;
+    document.getElementById('ai-input-area').style.display = 'flex';
+    return;
+  }
 
-function addAIMessage(type, text) {
-  var body = document.getElementById('ai-messages');
-  var el = document.createElement('div');
-  el.className = 'ai-msg ' + type;
-  el.textContent = text;
-  body.appendChild(el);
-  body.scrollTop = body.scrollHeight;
-  return el;
-}
+  var cleaned;
+  try   { cleaned = cleanFn(JSON.parse(JSON.stringify(sel.values))); }
+  catch (e) {
+    addAIMessage('ai', 'The code ran into a problem: ' + e.message + '. Tell me what to fix.');
+    document.getElementById('ai-send-btn').disabled        = false;
+    document.getElementById('ai-input-area').style.display = 'flex';
+    return;
+  }
 
-function runWorkflow(w) {
-  showToast('Running workflow…', false);
   Excel.run(function(ctx) {
-    var sheet = ctx.workbook.worksheets.getActiveWorksheet();
-    var data = sel.values;
-
-    /* run the stored cleaning code */
-    var cleanFn;
-    try {
-      cleanFn = new Function('return (' + w.code + ')')();
-    } catch(e) {
-      showToast('Workflow code error: ' + e.message, true);
-      return Promise.resolve();
-    }
-
-    var cleaned;
-    try {
-      cleaned = cleanFn(JSON.parse(JSON.stringify(data)));
-    } catch(e) {
-      showToast('Workflow run error: ' + e.message, true);
-      return Promise.resolve();
-    }
-
     var sheets = ctx.workbook.worksheets;
     sheets.load('items/name');
     return ctx.sync().then(function() {
       var existing = sheets.items.map(function(s) { return s.name; });
-      var cleanName = w.name, n = 1;
-      while (existing.includes(cleanName)) cleanName = w.name + ' ' + (n++);
+
+      /* Delete previous AI-created sheet if it exists */
+      if (lastAISheetName && existing.indexOf(lastAISheetName) >= 0) {
+        sheets.getItem(lastAISheetName).delete();
+      }
+
+      /* Pick a unique name for the new sheet */
+      var base = w.name.slice(0, 28), n = 1, cleanName = base;
+      /* Rebuild existing list after potential delete */
+      existing = existing.filter(function(nm) { return nm !== lastAISheetName; });
+      while (existing.indexOf(cleanName) >= 0) cleanName = base + ' ' + (n++);
+
       var ns = sheets.add(cleanName);
+      lastAISheetName = cleanName;
+
       var range = ns.getRangeByIndexes(0, 0, cleaned.length, cleaned[0].length);
       range.values = cleaned;
       ns.getRangeByIndexes(0, 0, 1, cleaned[0].length).format.font.bold = true;
@@ -770,13 +806,86 @@ function runWorkflow(w) {
       return ctx.sync();
     });
   }).then(function() {
-    showAIResult(w, sel.values.length - 1);
+    /* Show AI's explanation as a chat bubble */
+    var rows = cleaned.length - 1;
+    var msg  = explanation + '\n\nI\'ve created a new sheet "' + lastAISheetName + '" with ' +
+      rows + ' cleaned row' + (rows !== 1 ? 's' : '') + '. Your original data is untouched.';
+    addAIMessage('ai', msg);
+
+    document.getElementById('ai-send-btn').disabled        = false;
+    document.getElementById('ai-chat-footer').style.display = 'block';
+    document.getElementById('ai-input-area').style.display  = 'none';
+  }).catch(function(e) {
+    addAIMessage('ai', 'Excel reported an error: ' + e.message);
+    document.getElementById('ai-send-btn').disabled        = false;
+    document.getElementById('ai-input-area').style.display = 'flex';
+  });
+}
+
+/* Save button — persists the workflow, marks button as saved */
+function saveCurrentWorkflow() {
+  if (!currentDraftWorkflow) return;
+  saveWorkflow(currentDraftWorkflow);
+  var btn = document.getElementById('ai-save-btn');
+  if (btn) {
+    btn.innerHTML = '<i class="ti ti-circle-check" style="margin-right:6px"></i>Saved!';
+    btn.disabled  = true;
+    setTimeout(function() {
+      btn.innerHTML = '<i class="ti ti-device-floppy" style="margin-right:6px"></i>Save cleaning setup';
+      btn.disabled  = false;
+    }, 2500);
+  }
+  showToast('Workflow saved — find it in Clean with AI next time', false);
+  track('ai_workflow_saved', currentDraftWorkflow.name);
+}
+
+function addAIMessage(type, text) {
+  var body = document.getElementById('ai-messages');
+  var el   = document.createElement('div');
+  el.className = 'ai-msg ' + type;
+  /* Preserve line-breaks in AI messages */
+  el.style.whiteSpace = 'pre-wrap';
+  el.textContent = text;
+  body.appendChild(el);
+  /* Scroll the panel-body (parent of ai-messages) to bottom */
+  var panelBody = document.getElementById('ai-chat-body');
+  if (panelBody) panelBody.scrollTop = panelBody.scrollHeight;
+  return el;
+}
+
+/* ── Run a saved workflow (from the workflows list screen) ── */
+function runWorkflow(w, deleteSheetName) {
+  showToast('Applying workflow…', false);
+  var cleanFn;
+  try   { cleanFn = new Function('return (' + w.code + ')')(); }
+  catch (e) { showToast('Workflow code error: ' + e.message, true); return; }
+
+  var cleaned;
+  try   { cleaned = cleanFn(JSON.parse(JSON.stringify(sel.values))); }
+  catch (e) { showToast('Workflow run error: ' + e.message, true); return; }
+
+  Excel.run(function(ctx) {
+    var sheets = ctx.workbook.worksheets;
+    sheets.load('items/name');
+    return ctx.sync().then(function() {
+      var existing = sheets.items.map(function(s) { return s.name; });
+      var base = w.name.slice(0, 28), n = 1, cleanName = base;
+      while (existing.indexOf(cleanName) >= 0) cleanName = base + ' ' + (n++);
+      var ns = sheets.add(cleanName);
+      var range = ns.getRangeByIndexes(0, 0, cleaned.length, cleaned[0].length);
+      range.values = cleaned;
+      ns.getRangeByIndexes(0, 0, 1, cleaned[0].length).format.font.bold = true;
+      ns.activate();
+      return ctx.sync().then(function() { return cleanName; });
+    });
+  }).then(function(createdName) {
+    showAIResult(w, sel.values.length - 1, createdName);
   }).catch(function(e) {
     showToast('Error: ' + e.message, true);
   });
 }
 
-function showAIResult(w, originalRows) {
+function showAIResult(w, originalRows, sheetName) {
   var body = document.getElementById('ai-result-body');
   body.innerHTML =
     '<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">' +
@@ -785,11 +894,13 @@ function showAIResult(w, originalRows) {
         '<span style="font-size:13px;font-weight:600;color:var(--t1)">' + escHtml(w.name) + '</span>' +
       '</div>' +
       '<p style="font-size:12px;color:var(--t2);line-height:1.7;margin:0">' + escHtml(w.summary) + '</p>' +
-      '<div style="border-top:1px solid var(--b1);padding-top:10px;font-size:11px;color:var(--t3)">Cleaned sheet created · ' + originalRows + ' rows processed · Workflow saved for one-click reuse</div>' +
+      '<div style="border-top:1px solid var(--b1);padding-top:10px;font-size:11px;color:var(--t3)">' +
+        'Sheet "' + escHtml(sheetName || w.name) + '" created &middot; ' + originalRows + ' row' + (originalRows !== 1 ? 's' : '') + ' processed' +
+      '</div>' +
     '</div>' +
-    '<div style="background:rgba(124,95,240,.07);border:1px solid rgba(124,95,240,.2);border-radius:10px;padding:14px;font-size:11.5px;color:var(--t2);line-height:1.7">' +
-      '<i class="ti ti-bolt" style="color:var(--acc);margin-right:6px"></i>' +
-      'Next time you have data with these same columns, just select it, click <strong>Clean with AI</strong>, and hit <strong>' + escHtml(w.name) + '</strong> — done in one click.' +
+    '<div style="background:rgba(76,175,129,.07);border:1px solid rgba(76,175,129,.25);border-radius:10px;padding:14px;font-size:11.5px;color:var(--t2);line-height:1.7">' +
+      '<i class="ti ti-bolt" style="color:#4caf81;margin-right:6px"></i>' +
+      'Workflow saved. Next time you have data with these columns, click <strong>Clean with AI</strong> and hit <strong>' + escHtml(w.name) + '</strong> — done in one click.' +
     '</div>';
   show('ai-result');
   track('ai_clean_complete', w.name);
