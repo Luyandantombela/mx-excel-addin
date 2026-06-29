@@ -677,6 +677,7 @@ function sendAIMessage() {
   if (!text) return;
   input.value = '';
 
+  _lastUserMessage = text;   /* stored so the Retry button can re-send it */
   addAIMessage('user', text);
   aiConversation.push({ role: 'user', content: text });
 
@@ -688,13 +689,18 @@ function sendAIMessage() {
   var headers    = sel.values[0];
   var dataSample = sel.values.slice(0, 8); /* up to 7 data rows sent for accuracy */
 
-  /* Build a conversation-aware prompt ─────────────────────────────────── */
+  /* Build a conversation-aware prompt — keep only the last 2 exchanges
+     (4 messages) so the prompt never grows too large and times out.     */
   var historyStr = '';
   if (aiConversation.length > 1) {
-    var prev = aiConversation.slice(0, -1); /* everything except the message we just added */
-    historyStr = '\n\nConversation so far:\n' + prev.map(function(m) {
-      return (m.role === 'user' ? 'User: ' : 'AI: ') + m.content;
-    }).join('\n');
+    var prev = aiConversation.slice(0, -1);           /* drop the just-added user message */
+    var recentPrev = prev.slice(-4);                  /* at most last 4 messages (~2 turns) */
+    historyStr = '\n\nPREVIOUS EXCHANGES (summary only — do not repeat the code, just the intent):\n' +
+      recentPrev.map(function(m) {
+        /* Truncate long AI responses so they don't blow up the prompt */
+        var content = m.content.length > 300 ? m.content.slice(0, 300) + '…' : m.content;
+        return (m.role === 'user' ? 'User: ' : 'AI did: ') + content;
+      }).join('\n');
   }
 
   var prompt =
@@ -786,10 +792,31 @@ function sendAIMessage() {
   })
   .catch(function() {
     thinkEl.remove();
+    /* Show a retry button so the user doesn't have to retype */
+    var retryEl = document.createElement('div');
+    retryEl.className = 'ai-msg ai';
+    retryEl.style.whiteSpace = 'pre-wrap';
+    retryEl.innerHTML =
+      'Connection failed — check your internet and try again.' +
+      '<br><button onclick="retryLastAIMessage()" style="margin-top:8px;padding:6px 14px;background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:11px;font-family:\'IBM Plex Sans\',sans-serif;cursor:pointer"><i class="ti ti-refresh" style="margin-right:4px"></i>Retry</button>';
+    document.getElementById('ai-messages').appendChild(retryEl);
     document.getElementById('ai-send-btn').disabled        = false;
     document.getElementById('ai-input-area').style.display = 'flex';
-    addAIMessage('ai', 'I couldn\'t connect right now. Check your internet connection and try again.');
   });
+}
+
+/* Called by the retry button — re-sends the last user message */
+var _lastUserMessage = '';
+function retryLastAIMessage() {
+  if (!_lastUserMessage) return;
+  /* Remove the retry bubble */
+  var msgs = document.getElementById('ai-messages');
+  var last = msgs.lastElementChild;
+  if (last) last.remove();
+  /* Also remove the user bubble (it was already added) so we don't duplicate it */
+  aiConversation.pop(); /* remove the last user push */
+  document.getElementById('ai-input').value = _lastUserMessage;
+  sendAIMessage();
 }
 
 /* Apply the workflow inside the chat view (auto-runs, shows result in chat) */
@@ -810,6 +837,25 @@ function applyWorkflowInChat(w, explanation) {
     document.getElementById('ai-send-btn').disabled        = false;
     document.getElementById('ai-input-area').style.display = 'flex';
     return;
+  }
+
+  /* ── Guaranteed post-processing (runs regardless of AI code quality) ──
+     1. Remove rows where EVERY cell is blank/whitespace (except the header)
+     2. Ensure every row has the same column count as the header             */
+  if (Array.isArray(cleaned) && cleaned.length > 1) {
+    var colCount = cleaned[0].length;
+    cleaned = [cleaned[0]].concat(
+      cleaned.slice(1).filter(function(row) {
+        /* keep the row if at least one cell has a non-empty value */
+        return row.some(function(cell) {
+          return cell !== null && cell !== undefined && String(cell).trim() !== '';
+        });
+      }).map(function(row) {
+        /* pad / trim to header column count */
+        while (row.length < colCount) row.push('');
+        return row.slice(0, colCount);
+      })
+    );
   }
 
   Excel.run(function(ctx) {
