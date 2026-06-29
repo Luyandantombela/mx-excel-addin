@@ -818,7 +818,7 @@ function sendAIMessage() {
       'You are a data cleaning code generator for Microsoft Excel.\n\n' +
       'COLUMN HEADERS: ' + JSON.stringify(headers) + '\n\n' +
       'EXISTING FUNCTION (modify this — do NOT rewrite from scratch):\n' +
-      currentDraftWorkflow.code + '\n\n' +
+      currentDraftWorkflow.code.slice(0, 3000) + '\n\n' +
       'CHANGE REQUESTED BY USER: ' + text + '\n\n' +
       'INSTRUCTIONS:\n' +
       '  - Apply only the requested change to the function above.\n' +
@@ -860,6 +860,128 @@ function sendAIMessage() {
   }
 
 
+  /* Cap the code we embed in prompts so long functions don't time out */
+  var codeForPrompt = isRefinement ? currentDraftWorkflow.code.slice(0, 3000) : '';
+
+  /* Fallback prompt — asks for ONLY the raw function, no JSON required.
+     Used automatically when the primary response can't be parsed.        */
+  var fallbackPrompt = isRefinement
+    ? 'Output ONLY the complete updated JavaScript function. No JSON, no explanation, no markdown fences.\n\n' +
+      'CHANGE TO APPLY: ' + text + '\n\n' +
+      'FUNCTION TO MODIFY:\n' + codeForPrompt
+    : 'Output ONLY a complete JavaScript function named runCleaningCode(data). ' +
+      'No JSON wrapper, no explanation, no markdown.\n' +
+      'It takes a 2D array (first row = column headers) and returns the cleaned 2D array.\n' +
+      'Columns: ' + JSON.stringify(headers) + '\n' +
+      'Request: ' + text;
+
+  /* ── Shared helper: run all parse strategies on a raw string ──────────
+     Returns a {name,summary,explanation,code} object or null.            */
+  function tryExtractParsed(raw) {
+    raw = (raw || '')
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .trim();
+
+    var p = null;
+
+    /* S1 — direct parse */
+    try { p = JSON.parse(raw); } catch(e) {}
+
+    /* S2 — extract outermost { … } */
+    if (!p) {
+      var b = raw.indexOf('{'), lb = raw.lastIndexOf('}');
+      if (b !== -1 && lb > b) { try { p = JSON.parse(raw.slice(b, lb + 1)); } catch(e) {} }
+    }
+
+    /* S3 — brace-match to extract function runCleaningCode (handles real newlines in code) */
+    if (!p || !p.code) {
+      var fi = raw.indexOf('function runCleaningCode');
+      if (fi !== -1) {
+        var dep = 0, fe = -1;
+        for (var ci = fi; ci < raw.length; ci++) {
+          if (raw[ci] === '{') dep++;
+          else if (raw[ci] === '}') { dep--; if (dep === 0) { fe = ci + 1; break; } }
+        }
+        if (fe !== -1) {
+          var nm = raw.match(/"name"\s*:\s*"([^"]{1,60})"/);
+          var sm = raw.match(/"summary"\s*:\s*"([^"]{1,120})"/);
+          var ex = raw.match(/"explanation"\s*:\s*"([^"]{1,400})"/);
+          var fallbackName = isRefinement && currentDraftWorkflow
+            ? (currentDraftWorkflow.name || 'Cleaning workflow')
+            : 'Cleaning workflow';
+          p = {
+            name:        nm ? nm[1] : fallbackName,
+            summary:     sm ? sm[1] : 'Updated cleaning code',
+            explanation: ex ? ex[1] : 'Applied your requested changes.',
+            code:        raw.slice(fi, fe)
+          };
+        }
+      }
+    }
+
+    return (p && p.code) ? p : null;
+  }
+
+  /* ── Shared success path: store draft and apply to sheet ── */
+  function onParsed(p) {
+    currentDraftWorkflow = {
+      id:      currentDraftWorkflow ? currentDraftWorkflow.id : Date.now().toString(36),
+      name:    p.name    || 'Cleaning workflow',
+      summary: p.summary || p.explanation || '',
+      code:    p.code,
+      headers: headers.join('|'),
+      created: new Date().toLocaleDateString()
+    };
+    /* Only push a meaningful explanation — never push error strings */
+    aiConversation.push({ role: 'assistant', content: p.explanation || p.summary || '' });
+    applyWorkflowInChat(currentDraftWorkflow, p.explanation || p.summary || '');
+  }
+
+  /* ── Show a friendly retry button — conversation is kept clean ── */
+  function showRetryBubble(isNetworkError) {
+    /* Remove the user message we optimistically added — retry will re-add it */
+    aiConversation.pop();
+    var el = document.createElement('div');
+    el.className = 'ai-msg ai';
+    el.style.whiteSpace = 'pre-wrap';
+    el.innerHTML = (isNetworkError
+      ? 'Connection lost — check your internet.'
+      : 'Something went wrong on my end.') +
+      ' Your message is saved, just tap Retry.' +
+      '<br><button onclick="retryLastAIMessage()" style="margin-top:8px;padding:6px 14px;' +
+      'background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:11px;' +
+      'font-family:\'IBM Plex Sans\',sans-serif;cursor:pointer">' +
+      '<i class="ti ti-refresh" style="margin-right:4px"></i>Retry</button>';
+    document.getElementById('ai-messages').appendChild(el);
+    document.getElementById('ai-send-btn').disabled        = false;
+    document.getElementById('ai-input-area').style.display = 'flex';
+  }
+
+  /* ── Auto-retry with the simple code-only fallback prompt ── */
+  function onParseFailure() {
+    var thinkEl2 = addAIMessage('thinking', 'Let me try a different approach…');
+    fetch(_WORKER, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ action: 'ai', prompt: fallbackPrompt })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d2) {
+      thinkEl2.remove();
+      var p2 = tryExtractParsed(d2.result || '');
+      if (p2) { onParsed(p2); }
+      else     { showRetryBubble(false); }
+    })
+    .catch(function() {
+      thinkEl2.remove();
+      showRetryBubble(true);
+    });
+  }
+
+  /* ── Primary fetch ── */
   fetch(_WORKER, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -868,102 +990,13 @@ function sendAIMessage() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     thinkEl.remove();
-
-    /* ── Robust JSON extraction ────────────────────────────────────────
-       Claude sometimes wraps the JSON in markdown fences, adds a preamble
-       sentence, or uses smart quotes. Try several strategies in order.   */
-    var raw = data.result || '';
-    raw = raw
-      .replace(/```json\s*/gi, '')   /* ```json ... ``` */
-      .replace(/```\s*/g,      '')   /* bare ``` */
-      .replace(/[\u201C\u201D]/g, '"') /* "smart" double quotes */
-      .replace(/[\u2018\u2019]/g, "'") /* 'smart' single quotes */
-      .trim();
-
-    /* Strategy 1 — parse the whole string */
-    var parsed = null;
-    try { parsed = JSON.parse(raw); } catch(e) { /* fall through */ }
-
-    /* Strategy 2 — extract the outermost {...} block */
-    if (!parsed) {
-      var brace = raw.indexOf('{');
-      var lastBrace = raw.lastIndexOf('}');
-      if (brace !== -1 && lastBrace > brace) {
-        try { parsed = JSON.parse(raw.slice(brace, lastBrace + 1)); } catch(e) { /* fall through */ }
-      }
-    }
-
-    /* Strategy 3 — the worker may nest the text under data.result.content etc. */
-    if (!parsed && data.result && typeof data.result === 'object') {
-      var nested = data.result.content || data.result.text || data.result.message || '';
-      try { parsed = JSON.parse(nested); } catch(e) { /* fall through */ }
-    }
-
-    /* Strategy 4 — extract the function body directly using brace-matching.
-       This handles the case where the AI wraps output in markdown or adds prose
-       and the JSON has un-escaped newlines inside the "code" string value.     */
-    if (!parsed || !parsed.code) {
-      var fnIdx = raw.indexOf('function runCleaningCode');
-      if (fnIdx !== -1) {
-        var depth4 = 0, fnEnd4 = -1;
-        for (var ci = fnIdx; ci < raw.length; ci++) {
-          if (raw[ci] === '{') depth4++;
-          else if (raw[ci] === '}') { depth4--; if (depth4 === 0) { fnEnd4 = ci + 1; break; } }
-        }
-        if (fnEnd4 !== -1) {
-          var extractedCode = raw.slice(fnIdx, fnEnd4);
-          /* Try to grab name/summary/explanation from whatever JSON-ish text is around */
-          var nameM = raw.match(/"name"\s*:\s*"([^"]{1,60})"/);
-          var sumM  = raw.match(/"summary"\s*:\s*"([^"]{1,120})"/);
-          var expM  = raw.match(/"explanation"\s*:\s*"([^"]{1,400})"/);
-          parsed = {
-            name:        nameM ? nameM[1]  : 'Cleaning workflow',
-            summary:     sumM  ? sumM[1]   : 'Updated cleaning code',
-            explanation: expM  ? expM[1]   : 'Applied your requested changes.',
-            code:        extractedCode
-          };
-        }
-      }
-    }
-
-    if (!parsed || !parsed.code) {
-      var errMsg = 'I couldn\'t format my response correctly — please try sending your request again. ' +
-                   'If it keeps failing, break your request into smaller steps.';
-      addAIMessage('ai', errMsg);
-      aiConversation.push({ role: 'assistant', content: errMsg });
-      document.getElementById('ai-send-btn').disabled        = false;
-      document.getElementById('ai-input-area').style.display = 'flex';
-      return;
-    }
-
-    /* Store the draft workflow (with a stable id so re-saves overwrite) */
-    currentDraftWorkflow = {
-      id:      currentDraftWorkflow ? currentDraftWorkflow.id : Date.now().toString(36),
-      name:    parsed.name    || 'Cleaning workflow',
-      summary: parsed.summary || parsed.explanation || '',
-      code:    parsed.code,
-      headers: headers.join('|'),
-      created: new Date().toLocaleDateString()
-    };
-
-    /* Push the AI explanation into conversation history */
-    aiConversation.push({ role: 'assistant', content: parsed.explanation || parsed.summary || '' });
-
-    /* ── Auto-apply: delete previous AI sheet (if any) and create new one ── */
-    applyWorkflowInChat(currentDraftWorkflow, parsed.explanation || parsed.summary || '');
+    var p = tryExtractParsed(data.result || '');
+    if (p) { onParsed(p); }
+    else   { onParseFailure(); }   /* silent auto-retry — user sees nothing yet */
   })
   .catch(function() {
     thinkEl.remove();
-    /* Show a retry button so the user doesn't have to retype */
-    var retryEl = document.createElement('div');
-    retryEl.className = 'ai-msg ai';
-    retryEl.style.whiteSpace = 'pre-wrap';
-    retryEl.innerHTML =
-      'Connection failed — check your internet and try again.' +
-      '<br><button onclick="retryLastAIMessage()" style="margin-top:8px;padding:6px 14px;background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:11px;font-family:\'IBM Plex Sans\',sans-serif;cursor:pointer"><i class="ti ti-refresh" style="margin-right:4px"></i>Retry</button>';
-    document.getElementById('ai-messages').appendChild(retryEl);
-    document.getElementById('ai-send-btn').disabled        = false;
-    document.getElementById('ai-input-area').style.display = 'flex';
+    showRetryBubble(true);
   });
 }
 
@@ -971,12 +1004,14 @@ function sendAIMessage() {
 var _lastUserMessage = '';
 function retryLastAIMessage() {
   if (!_lastUserMessage) return;
-  /* Remove the retry bubble */
   var msgs = document.getElementById('ai-messages');
-  var last = msgs.lastElementChild;
-  if (last) last.remove();
-  /* Also remove the user bubble (it was already added) so we don't duplicate it */
-  aiConversation.pop(); /* remove the last user push */
+  /* Remove the error/retry bubble (last child) */
+  var errBubble = msgs.lastElementChild;
+  if (errBubble) errBubble.remove();
+  /* Remove the original user bubble too — sendAIMessage will re-add it cleanly */
+  var userBubble = msgs.lastElementChild;
+  if (userBubble && userBubble.classList.contains('user')) userBubble.remove();
+  /* aiConversation already had the user entry popped by showRetryBubble — do NOT pop again */
   document.getElementById('ai-input').value = _lastUserMessage;
   sendAIMessage();
 }
