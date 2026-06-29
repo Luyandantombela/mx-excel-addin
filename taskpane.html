@@ -699,20 +699,25 @@ function sendAIMessage() {
 
   var prompt =
     'You are a data cleaning code generator for Microsoft Excel.\n\n' +
-    'Data headers: ' + JSON.stringify(headers) + '\n' +
-    'Sample rows (first 7): ' + JSON.stringify(dataSample.slice(1)) + '\n' +
+    'COLUMN HEADERS: ' + JSON.stringify(headers) + '\n' +
+    'SAMPLE DATA (rows 1-7): ' + JSON.stringify(dataSample.slice(1)) + '\n' +
     historyStr + '\n\n' +
-    'Latest user request: ' + text + '\n\n' +
-    'Write a JavaScript function called runCleaningCode(data) that:\n' +
-    '- Accepts a 2D array (first row = headers)\n' +
-    '- Returns the fully cleaned 2D array (headers row included)\n' +
-    '- Uses only vanilla JavaScript\n' +
-    '- Handles null/empty cells gracefully\n' +
-    '- NEVER modifies the original array passed in\n\n' +
-    'Also write a short plain-English explanation (2-4 sentences) of exactly what the code does.\n' +
-    'Also write a short workflow name (max 5 words) and a one-line summary (max 15 words).\n\n' +
-    'Respond ONLY with a JSON object, no markdown fences:\n' +
-    '{"name":"...","summary":"...","explanation":"...","code":"function runCleaningCode(data){...}"}';
+    'USER REQUEST: ' + text + '\n\n' +
+    'TASK: Write a JavaScript function `runCleaningCode(data)` where:\n' +
+    '  - `data` is a 2D array, first row is headers\n' +
+    '  - Returns the cleaned 2D array (with headers as first row)\n' +
+    '  - Uses only vanilla JS (no imports, no fetch, no eval)\n' +
+    '  - Deep-copies input before modifying (never mutate the original)\n' +
+    '  - Handles null/undefined/empty string cells without throwing\n' +
+    '  - Removes blank rows AFTER applying all other transforms\n\n' +
+    'CRITICAL OUTPUT RULES:\n' +
+    '  1. Output ONLY a raw JSON object — no markdown, no code fences, no prose before or after\n' +
+    '  2. All string values inside the JSON must use escaped double-quotes\n' +
+    '  3. The `code` value must be a single-line-safe JS function string\n' +
+    '  4. Schema (all 4 keys required):\n' +
+    '     {"name":"max 5 words","summary":"max 15 words","explanation":"2-4 sentences what the code does","code":"function runCleaningCode(data){...}"}\n\n' +
+    'START YOUR RESPONSE WITH { AND END WITH } — NOTHING ELSE.';
+
 
   fetch(_WORKER, {
     method:  'POST',
@@ -722,12 +727,40 @@ function sendAIMessage() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     thinkEl.remove();
-    var raw = (data.result || '').replace(/```json|```/g, '').trim();
-    var parsed;
-    try { parsed = JSON.parse(raw); } catch(e) { parsed = null; }
+
+    /* ── Robust JSON extraction ────────────────────────────────────────
+       Claude sometimes wraps the JSON in markdown fences, adds a preamble
+       sentence, or uses smart quotes. Try several strategies in order.   */
+    var raw = data.result || '';
+    raw = raw
+      .replace(/```json\s*/gi, '')   /* ```json ... ``` */
+      .replace(/```\s*/g,      '')   /* bare ``` */
+      .replace(/[\u201C\u201D]/g, '"') /* "smart" double quotes */
+      .replace(/[\u2018\u2019]/g, "'") /* 'smart' single quotes */
+      .trim();
+
+    /* Strategy 1 — parse the whole string */
+    var parsed = null;
+    try { parsed = JSON.parse(raw); } catch(e) { /* fall through */ }
+
+    /* Strategy 2 — extract the outermost {...} block */
+    if (!parsed) {
+      var brace = raw.indexOf('{');
+      var lastBrace = raw.lastIndexOf('}');
+      if (brace !== -1 && lastBrace > brace) {
+        try { parsed = JSON.parse(raw.slice(brace, lastBrace + 1)); } catch(e) { /* fall through */ }
+      }
+    }
+
+    /* Strategy 3 — the worker may nest the text under data.result.content etc. */
+    if (!parsed && data.result && typeof data.result === 'object') {
+      var nested = data.result.content || data.result.text || data.result.message || '';
+      try { parsed = JSON.parse(nested); } catch(e) { /* fall through */ }
+    }
 
     if (!parsed || !parsed.code) {
-      var errMsg = 'Hmm, I had trouble parsing that. Could you rephrase what you want done?';
+      var errMsg = 'I couldn\'t format my response correctly — please try sending your request again. ' +
+                   'If it keeps failing, break your request into smaller steps.';
       addAIMessage('ai', errMsg);
       aiConversation.push({ role: 'assistant', content: errMsg });
       document.getElementById('ai-send-btn').disabled        = false;
