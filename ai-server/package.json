@@ -1,0 +1,17 @@
+{
+  "name": "mx-ai-server",
+  "version": "1.0.0",
+  "description": "AI proxy server for MX Sheet Toolkit Excel add-in",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
