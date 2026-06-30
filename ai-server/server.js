@@ -34,25 +34,10 @@ No JSON. No markdown fences. No prose before or after. Just the comments + funct
 `.trim();
 
 /* ── Prompt builders ─────────────────────────────────────────────────── */
-function buildPrompt(userMessage, headers, sampleData, previousCode) {
-  if (previousCode) {
-    return [
-      'You are a data cleaning code generator for Microsoft Excel.',
-      '',
-      'COLUMNS: ' + JSON.stringify(headers),
-      '',
-      'EXISTING FUNCTION — modify it to apply the change below, keep everything else unchanged:',
-      previousCode.slice(0, 3000),
-      '',
-      'CHANGE REQUESTED: ' + userMessage,
-      '',
-      COMMENT_FORMAT
-    ].join('\n');
-  }
 
+/* Initial (first message) prompt */
+function buildInitialPrompt(userMessage, headers, sampleData) {
   return [
-    'You are a data cleaning code generator for Microsoft Excel.',
-    '',
     'COLUMNS: ' + JSON.stringify(headers),
     'SAMPLE DATA (rows 1-7, for column type hints only): ' + JSON.stringify(sampleData),
     '',
@@ -69,6 +54,69 @@ function buildPrompt(userMessage, headers, sampleData, previousCode) {
     '',
     COMMENT_FORMAT
   ].join('\n');
+}
+
+/*
+ * Build the Claude messages array for a refinement.
+ * We replay the conversation as multi-turn messages so Claude has
+ * true memory of every previously approved change.
+ *
+ * Structure:
+ *   user  → original generation request
+ *   asst  → the current approved code  (Claude "remembers" producing this)
+ *   user  → each subsequent refinement the user asked for (from history)
+ *   asst  → the same approved code repeated (stable reference point)
+ *   user  → the NEW change being requested right now
+ */
+function buildRefinementMessages(userMessage, headers, sampleData, previousCode, conversation) {
+  const msgs = [];
+
+  /* Find the first user turn in the stored conversation — the original request */
+  const firstUserTurn = (conversation || []).find(t => t.role === 'user');
+  const firstRequest  = firstUserTurn ? firstUserTurn.content : userMessage;
+
+  /* Turn 1: original generation */
+  msgs.push({
+    role:    'user',
+    content: buildInitialPrompt(firstRequest, headers, sampleData)
+  });
+  /* Turn 2: Claude's "previous answer" = the current approved function */
+  msgs.push({
+    role:    'assistant',
+    content: previousCode
+  });
+
+  /* Replay intermediate refinements so Claude sees the full edit history */
+  const refinements = (conversation || []).filter(t => t.role === 'user').slice(1);
+  for (const turn of refinements) {
+    msgs.push({
+      role:    'user',
+      content: 'REFINEMENT: ' + turn.content + '\n\nKeep every other existing transform exactly as-is. Only apply this one change.\n\n' + COMMENT_FORMAT
+    });
+    /* Repeat the approved code as Claude's answer after each refinement */
+    msgs.push({
+      role:    'assistant',
+      content: previousCode
+    });
+  }
+
+  /* Final turn: the NEW change being requested now */
+  msgs.push({
+    role:    'user',
+    content: [
+      'REFINEMENT: ' + userMessage,
+      '',
+      'RULES:',
+      '1. Start from the APPROVED function above — do NOT rewrite from scratch.',
+      '2. Add or adjust ONLY what the user just asked for.',
+      '3. Every other transform already in the function must remain unchanged.',
+      '4. Do NOT remove any existing logic even if you think it could be simplified.',
+      '',
+      COMMENT_FORMAT
+    ].join('\n')
+  });
+
+  return msgs;
 }
 
 function buildFallbackPrompt(userMessage, headers, previousCode) {
@@ -119,14 +167,19 @@ function parseResponse(raw, fallbackName) {
 
 /* ── /api/clean  ─────────────────────────────────────────────────────── */
 app.post('/api/clean', async (req, res) => {
-  const { userMessage, headers, sampleData, previousCode, previousName } = req.body || {};
+  const { userMessage, headers, sampleData, previousCode, previousName, conversation } = req.body || {};
 
   if (!userMessage || !Array.isArray(headers) || headers.length === 0) {
     return res.status(400).json({ error: 'Missing required fields: userMessage, headers' });
   }
 
-  const prompt = buildPrompt(userMessage, headers, sampleData || [], previousCode || null);
   const fallbackName = previousName || null;
+  const isRefinement = !!previousCode;
+
+  /* Build Claude messages — multi-turn for refinements, single-turn for new requests */
+  const messages = isRefinement
+    ? buildRefinementMessages(userMessage, headers, sampleData || [], previousCode, conversation || [])
+    : [{ role: 'user', content: buildInitialPrompt(userMessage, headers, sampleData || []) }];
 
   /* Primary attempt */
   let raw = '';
@@ -134,7 +187,7 @@ app.post('/api/clean', async (req, res) => {
     const msg = await anthropic.messages.create({
       model:      'claude-opus-4-5',
       max_tokens: 4096,
-      messages:   [{ role: 'user', content: prompt }]
+      messages
     });
     raw = (msg.content[0] && msg.content[0].text) || '';
   } catch (err) {
@@ -144,7 +197,7 @@ app.post('/api/clean', async (req, res) => {
 
   let parsed = parseResponse(raw, fallbackName);
 
-  /* Automatic internal retry with a simpler prompt — user never sees this */
+  /* Automatic internal retry with a simpler single-turn fallback — user never sees this */
   if (!parsed) {
     console.log('[Retry] Primary parse failed, trying fallback prompt…');
     const fallbackPrompt = buildFallbackPrompt(userMessage, headers, previousCode || null);
