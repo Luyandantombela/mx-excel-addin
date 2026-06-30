@@ -132,7 +132,7 @@ app.post('/api/clean', async (req, res) => {
   let raw = '';
   try {
     const msg = await anthropic.messages.create({
-      model:      'claude-3-5-sonnet-latest',
+      model:      'claude-opus-4-5',
       max_tokens: 4096,
       messages:   [{ role: 'user', content: prompt }]
     });
@@ -150,7 +150,7 @@ app.post('/api/clean', async (req, res) => {
     const fallbackPrompt = buildFallbackPrompt(userMessage, headers, previousCode || null);
     try {
       const msg2 = await anthropic.messages.create({
-        model:      'claude-3-5-sonnet-latest',
+        model:      'claude-opus-4-5',
         max_tokens: 4096,
         messages:   [{ role: 'user', content: fallbackPrompt }]
       });
@@ -184,7 +184,7 @@ app.post('/api/describe', async (req, res) => {
 
   try {
     const msg = await anthropic.messages.create({
-      model:      'claude-3-5-sonnet-latest',
+      model:      'claude-opus-4-5',
       max_tokens: 512,
       messages:   [{ role: 'user', content: prompt }]
     });
