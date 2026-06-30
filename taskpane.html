@@ -803,15 +803,20 @@ function sendAIMessage() {
   var isRefinement = (aiConversation.length > 1) && currentDraftWorkflow && currentDraftWorkflow.code;
 
   /* ── Send to Render server — all prompt logic lives there now ── */
+  /* Send conversation history so server can build multi-turn Claude messages,
+     giving the AI true memory of what was already approved.
+     Slice off the last entry (the current user message we just pushed)
+     so it isn't duplicated — the server receives it via userMessage. */
   fetch(_WORKER + '/api/clean', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       userMessage:  text,
       headers:      headers,
-      sampleData:   dataSample.slice(1),           /* rows 1-7, no header row */
+      sampleData:   dataSample.slice(1),
       previousCode: isRefinement ? currentDraftWorkflow.code : null,
-      previousName: isRefinement ? currentDraftWorkflow.name : null
+      previousName: isRefinement ? currentDraftWorkflow.name : null,
+      conversation: isRefinement ? aiConversation.slice(0, -1) : []
     })
   })
   .then(function(r) { return r.json(); })
