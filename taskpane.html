@@ -489,7 +489,7 @@ var _tid = (function() {
 var _sid    = 's_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
 var _sStart = Date.now();
 var _TU      = 'https://script.google.com/macros/s/AKfycby0gInL2oXQ5SdpuIYmy4GDFgsfLkrfFRX-yu51VOtUgU4BMyGROuG1cGu7esKRX__q/exec';
-var _WORKER  = 'https://mx-ai-proxy.lntombela159.workers.dev';
+var _WORKER  = 'https://mx-excel-addin.onrender.com';
 
 function track(event, detail) {
   try {
@@ -733,21 +733,15 @@ function editWorkflow(w) {
   /* Show thinking bubble while the AI reads the code */
   var thinkEl = addAIMessage('thinking', 'Reading your workflow…');
 
-  var describePrompt =
-    'The following JavaScript function cleans spreadsheet data. ' +
-    'In 3–5 plain-English sentences (no code, no bullet points), explain what it does to each column. ' +
-    'Then on a new line write exactly: "What would you like to change?"\n\n' +
-    'FUNCTION:\n' + w.code;
-
-  fetch(_WORKER, {
+  fetch(_WORKER + '/api/describe', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ action: 'ai', prompt: describePrompt })
+    body:    JSON.stringify({ code: w.code })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     thinkEl.remove();
-    var desc = (data.result || '').trim() ||
+    var desc = (data.description || '').trim() ||
       (w.explanation || w.summary || 'This workflow applies saved data cleaning steps.') +
       '\n\nWhat would you like to change?';
     addAIMessage('ai', desc);
@@ -805,152 +799,53 @@ function sendAIMessage() {
   var headers    = sel.values[0];
   var dataSample = sel.values.slice(0, 8); /* up to 7 data rows sent for accuracy */
 
-  /* Build the prompt.
-     If there is already a working draft (refinement), pass the previous code
-     so the AI can modify it in-place rather than regenerating from scratch.
-     This is the main fix for follow-up messages like "add decimal places". */
+  /* ── Determine if this is a refinement of an existing workflow ── */
   var isRefinement = (aiConversation.length > 1) && currentDraftWorkflow && currentDraftWorkflow.code;
-  var prompt;
 
-  if (isRefinement) {
-    /* ── Refinement prompt — shorter, includes the existing code ── */
-    prompt =
-      'You are a data cleaning code generator for Microsoft Excel.\n\n' +
-      'COLUMN HEADERS: ' + JSON.stringify(headers) + '\n\n' +
-      'EXISTING FUNCTION (modify this — do NOT rewrite from scratch):\n' +
-      currentDraftWorkflow.code.slice(0, 3000) + '\n\n' +
-      'CHANGE REQUESTED BY USER: ' + text + '\n\n' +
-      'INSTRUCTIONS:\n' +
-      '  - Apply only the requested change to the function above.\n' +
-      '  - Keep all other transforms unchanged.\n' +
-      '  - The function signature must remain: function runCleaningCode(data)\n' +
-      '  - Returns the cleaned 2D array (headers as first row).\n\n' +
-      'OUTPUT — a single raw JSON object, nothing else:\n' +
-      '{"name":"max 5 words","summary":"max 15 words","explanation":"1-2 sentences","code":"function runCleaningCode(data){...}"}\n\n' +
-      'RULES: No markdown, no code fences, no prose. START WITH { END WITH }.';
-  } else {
-    /* ── First-message prompt — full instructions with data sample ── */
-    prompt =
-      'You are a data cleaning code generator for Microsoft Excel.\n\n' +
-      'COLUMN HEADERS: ' + JSON.stringify(headers) + '\n' +
-      'SAMPLE DATA (rows 1-7): ' + JSON.stringify(dataSample.slice(1)) + '\n\n' +
-      'USER REQUEST: ' + text + '\n\n' +
-      'TASK: Write a JavaScript function `runCleaningCode(data)` where:\n' +
-      '  - `data` is a 2D array, first row is headers\n' +
-      '  - Returns the cleaned 2D array (with headers as first row)\n' +
-      '  - Uses only vanilla JS (no imports, no fetch, no eval)\n' +
-      '  - Deep-copies input before modifying (never mutate the original)\n' +
-      '  - Handles null/undefined/empty string cells without throwing\n' +
-      '  - Removes blank rows AFTER applying all other transforms\n\n' +
-      'GENERALIZATION RULES — your code must be robust for ANY future upload, not just the sample shown:\n' +
-      '  - Treat sample data as column-type hints only. Do NOT hardcode specific values from it.\n' +
-      '  - Dates: handle ISO (YYYY-MM-DD), US (MM/DD/YYYY), EU (DD/MM/YYYY), long-form ("Jan 5 2024"), Excel serial numbers, and empty/invalid — do not assume one format.\n' +
-      '  - Numbers: strip currency symbols ($£€), commas, % signs; handle negative numbers, mixed alphanumeric, and pure text (replace with 0 or null as the user wants).\n' +
-      '  - Text columns: always trim and guard against null/undefined before any String method call.\n' +
-      '  - Emails: validate with a general RFC-style regex — do not assume domains from the sample.\n' +
-      '  - IDs / codes: handle varying lengths, leading/trailing spaces, mixed case — write generic normalization, not pattern-matched to sample values.\n' +
-      '  - Every cell access must be null-safe: `String(cell || \'\').trim()` not `cell.trim()`.\n\n' +
-      'CRITICAL OUTPUT RULES:\n' +
-      '  1. Output ONLY a raw JSON object — no markdown, no code fences, no prose before or after\n' +
-      '  2. All string values inside the JSON must use escaped double-quotes\n' +
-      '  3. The `code` value must be a single-line JS function string (use \\n for newlines inside)\n' +
-      '  4. Schema (all 4 keys required):\n' +
-      '     {"name":"max 5 words","summary":"max 15 words","explanation":"2-4 sentences","code":"function runCleaningCode(data){...}"}\n\n' +
-      'START YOUR RESPONSE WITH { AND END WITH } — NOTHING ELSE.';
-  }
+  /* ── Send to Render server — all prompt logic lives there now ── */
+  fetch(_WORKER + '/api/clean', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userMessage:  text,
+      headers:      headers,
+      sampleData:   dataSample.slice(1),           /* rows 1-7, no header row */
+      previousCode: isRefinement ? currentDraftWorkflow.code : null,
+      previousName: isRefinement ? currentDraftWorkflow.name : null
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    thinkEl.remove();
 
-
-  /* Cap the code we embed in prompts so long functions don't time out */
-  var codeForPrompt = isRefinement ? currentDraftWorkflow.code.slice(0, 3000) : '';
-
-  /* Fallback prompt — asks for ONLY the raw function, no JSON required.
-     Used automatically when the primary response can't be parsed.        */
-  var fallbackPrompt = isRefinement
-    ? 'Output ONLY the complete updated JavaScript function. No JSON, no explanation, no markdown fences.\n\n' +
-      'CHANGE TO APPLY: ' + text + '\n\n' +
-      'FUNCTION TO MODIFY:\n' + codeForPrompt
-    : 'Output ONLY a complete JavaScript function named runCleaningCode(data). ' +
-      'No JSON wrapper, no explanation, no markdown.\n' +
-      'It takes a 2D array (first row = column headers) and returns the cleaned 2D array.\n' +
-      'Columns: ' + JSON.stringify(headers) + '\n' +
-      'Request: ' + text;
-
-  /* ── Shared helper: run all parse strategies on a raw string ──────────
-     Returns a {name,summary,explanation,code} object or null.            */
-  function tryExtractParsed(raw) {
-    raw = (raw || '')
-      .replace(/```json\s*/gi, '')
-      .replace(/```\s*/g, '')
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2018\u2019]/g, "'")
-      .trim();
-
-    var p = null;
-
-    /* S1 — direct parse */
-    try { p = JSON.parse(raw); } catch(e) {}
-
-    /* S2 — extract outermost { … } */
-    if (!p) {
-      var b = raw.indexOf('{'), lb = raw.lastIndexOf('}');
-      if (b !== -1 && lb > b) { try { p = JSON.parse(raw.slice(b, lb + 1)); } catch(e) {} }
+    /* Server returns { error } when it couldn't generate valid code */
+    if (data.error) {
+      aiConversation.pop();
+      addAIMessage('ai', data.hint || data.error);
+      document.getElementById('ai-send-btn').disabled        = false;
+      document.getElementById('ai-input-area').style.display = 'flex';
+      return;
     }
 
-    /* S3 — brace-match to extract function runCleaningCode (handles real newlines in code) */
-    if (!p || !p.code) {
-      var fi = raw.indexOf('function runCleaningCode');
-      if (fi !== -1) {
-        var dep = 0, fe = -1;
-        for (var ci = fi; ci < raw.length; ci++) {
-          if (raw[ci] === '{') dep++;
-          else if (raw[ci] === '}') { dep--; if (dep === 0) { fe = ci + 1; break; } }
-        }
-        if (fe !== -1) {
-          var nm = raw.match(/"name"\s*:\s*"([^"]{1,60})"/);
-          var sm = raw.match(/"summary"\s*:\s*"([^"]{1,120})"/);
-          var ex = raw.match(/"explanation"\s*:\s*"([^"]{1,400})"/);
-          var fallbackName = isRefinement && currentDraftWorkflow
-            ? (currentDraftWorkflow.name || 'Cleaning workflow')
-            : 'Cleaning workflow';
-          p = {
-            name:        nm ? nm[1] : fallbackName,
-            summary:     sm ? sm[1] : 'Updated cleaning code',
-            explanation: ex ? ex[1] : 'Applied your requested changes.',
-            code:        raw.slice(fi, fe)
-          };
-        }
-      }
-    }
-
-    return (p && p.code) ? p : null;
-  }
-
-  /* ── Shared success path: store draft and apply to sheet ── */
-  function onParsed(p) {
+    /* Server returns { name, summary, explanation, code } — always clean */
     currentDraftWorkflow = {
       id:      currentDraftWorkflow ? currentDraftWorkflow.id : Date.now().toString(36),
-      name:    p.name    || 'Cleaning workflow',
-      summary: p.summary || p.explanation || '',
-      code:    p.code,
+      name:    data.name    || 'Cleaning workflow',
+      summary: data.summary || data.explanation || '',
+      code:    data.code,
       headers: headers.join('|'),
       created: new Date().toLocaleDateString()
     };
-    /* Only push a meaningful explanation — never push error strings */
-    aiConversation.push({ role: 'assistant', content: p.explanation || p.summary || '' });
-    applyWorkflowInChat(currentDraftWorkflow, p.explanation || p.summary || '');
-  }
-
-  /* ── Show a friendly retry button — conversation is kept clean ── */
-  function showRetryBubble(isNetworkError) {
-    /* Remove the user message we optimistically added — retry will re-add it */
+    aiConversation.push({ role: 'assistant', content: data.explanation || data.summary || '' });
+    applyWorkflowInChat(currentDraftWorkflow, data.explanation || data.summary || '');
+  })
+  .catch(function() {
+    thinkEl.remove();
     aiConversation.pop();
     var el = document.createElement('div');
     el.className = 'ai-msg ai';
     el.style.whiteSpace = 'pre-wrap';
-    el.innerHTML = (isNetworkError
-      ? 'Connection lost — check your internet.'
-      : 'Something went wrong on my end.') +
-      ' Your message is saved, just tap Retry.' +
+    el.innerHTML = 'Connection lost — check your internet and tap Retry.' +
       '<br><button onclick="retryLastAIMessage()" style="margin-top:8px;padding:6px 14px;' +
       'background:var(--acc);border:none;border-radius:6px;color:#fff;font-size:11px;' +
       'font-family:\'IBM Plex Sans\',sans-serif;cursor:pointer">' +
@@ -958,45 +853,6 @@ function sendAIMessage() {
     document.getElementById('ai-messages').appendChild(el);
     document.getElementById('ai-send-btn').disabled        = false;
     document.getElementById('ai-input-area').style.display = 'flex';
-  }
-
-  /* ── Auto-retry with the simple code-only fallback prompt ── */
-  function onParseFailure() {
-    var thinkEl2 = addAIMessage('thinking', 'Let me try a different approach…');
-    fetch(_WORKER, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ action: 'ai', prompt: fallbackPrompt })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(d2) {
-      thinkEl2.remove();
-      var p2 = tryExtractParsed(d2.result || '');
-      if (p2) { onParsed(p2); }
-      else     { showRetryBubble(false); }
-    })
-    .catch(function() {
-      thinkEl2.remove();
-      showRetryBubble(true);
-    });
-  }
-
-  /* ── Primary fetch ── */
-  fetch(_WORKER, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ action: 'ai', prompt: prompt })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    thinkEl.remove();
-    var p = tryExtractParsed(data.result || '');
-    if (p) { onParsed(p); }
-    else   { onParseFailure(); }   /* silent auto-retry — user sees nothing yet */
-  })
-  .catch(function() {
-    thinkEl.remove();
-    showRetryBubble(true);
   });
 }
 
