@@ -132,7 +132,7 @@ app.post('/api/clean', async (req, res) => {
   let raw = '';
   try {
     const msg = await anthropic.messages.create({
-      model:      'claude-3-5-sonnet-20241022',
+      model:      'claude-3-5-sonnet-latest',
       max_tokens: 4096,
       messages:   [{ role: 'user', content: prompt }]
     });
@@ -150,7 +150,7 @@ app.post('/api/clean', async (req, res) => {
     const fallbackPrompt = buildFallbackPrompt(userMessage, headers, previousCode || null);
     try {
       const msg2 = await anthropic.messages.create({
-        model:      'claude-3-5-sonnet-20241022',
+        model:      'claude-3-5-sonnet-latest',
         max_tokens: 4096,
         messages:   [{ role: 'user', content: fallbackPrompt }]
       });
@@ -184,7 +184,7 @@ app.post('/api/describe', async (req, res) => {
 
   try {
     const msg = await anthropic.messages.create({
-      model:      'claude-3-5-sonnet-20241022',
+      model:      'claude-3-5-sonnet-latest',
       max_tokens: 512,
       messages:   [{ role: 'user', content: prompt }]
     });
@@ -194,6 +194,19 @@ app.post('/api/describe', async (req, res) => {
     /* Fallback — just return empty so the add-in uses the stored explanation */
     return res.json({ description: '' });
   }
+});
+
+/* ── / (root status page) ────────────────────────────────────────────── */
+app.get('/', (_req, res) => {
+  res.send(
+    '<html><body style="font-family:sans-serif;padding:40px">' +
+    '<h2>✅ MX AI Server is running</h2>' +
+    '<p>Endpoints:</p><ul>' +
+    '<li><code>POST /api/clean</code> — generate a cleaning workflow</li>' +
+    '<li><code>POST /api/describe</code> — describe an existing workflow</li>' +
+    '<li><code>GET /health</code> — health check</li>' +
+    '</ul></body></html>'
+  );
 });
 
 /* ── /health ─────────────────────────────────────────────────────────── */
