@@ -180,10 +180,83 @@
       btn.textContent = 'Copied!';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      sendTrackingEvent('copy_link', { copiedFromSection: elId });
     });
   }
 
   showPlatform(detectPlatform());
+
+  /* ====== VISITOR TRACKING ======
+     Sends events to a Google Apps Script Web App, which logs rows into your Google Sheet.
+     Replace TRACKING_URL below with the URL you get after deploying the Apps Script (see setup instructions).
+  */
+  var TRACKING_URL = "https://script.google.com/macros/s/AKfycbylDcHB4AOldRxF231tN1gbucVl9Kv7uA03NUBvi2TDRNdvh0XCI1V5XUv0pJIRBo8WYw/exec";
+
+  function getVisitorId() {
+    var key = "mx_visitor_id";
+    var id = localStorage.getItem(key);
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      }));
+      localStorage.setItem(key, id);
+    }
+    return id;
+  }
+
+  var visitorId = getVisitorId();
+  var pageLoadTime = Date.now();
+  var sessionId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+
+  function sendTrackingEvent(eventType, extra) {
+    var payload = Object.assign({
+      visitorId: visitorId,
+      sessionId: sessionId,
+      eventType: eventType,
+      timestamp: new Date().toISOString(),
+      platformDetected: detectPlatform(),
+      userAgent: navigator.userAgent,
+      timeOnPageSeconds: Math.round((Date.now() - pageLoadTime) / 1000)
+    }, extra || {});
+
+    var body = JSON.stringify(payload);
+
+    // sendBeacon is more reliable for events fired on page unload
+    if (eventType === 'page_exit' && navigator.sendBeacon) {
+      navigator.sendBeacon(TRACKING_URL, new Blob([body], { type: 'text/plain' }));
+    } else {
+      fetch(TRACKING_URL, {
+        method: 'POST',
+        mode: 'no-cors', // Apps Script web apps don't return CORS headers by default
+        headers: { 'Content-Type': 'text/plain' },
+        body: body
+      }).catch(function(err) { console.warn('Tracking failed', err); });
+    }
+  }
+
+  // Fire on page view
+  sendTrackingEvent('page_view');
+
+  // Fire when the user leaves the page (covers tab close, navigation, refresh)
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+      sendTrackingEvent('page_exit');
+    }
+  });
+  window.addEventListener('pagehide', function() {
+    sendTrackingEvent('page_exit');
+  });
+
+  // Hook into the existing download button
+  document.addEventListener('DOMContentLoaded', function() {
+    var dlBtn = document.querySelector('.btn-download');
+    if (dlBtn) {
+      dlBtn.addEventListener('click', function() {
+        sendTrackingEvent('download_manifest');
+      });
+    }
+  });
 </script>
 </body>
 </html>
